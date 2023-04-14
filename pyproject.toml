@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "micropython-magic"
+version = "0.1.0"
+description = "MicroPython Magic commands for use with Jupyter notebooks"
+keywords = ["MicroPython", "stubs", "Jupyter", "notebooks", "vscode"]
+authors = ["Jos Verlinde <jos_verlinde@hotmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+packages = [{ include = "mpy_magic", from = "src" }]
+include = []
+exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+mpremote = { git = "https://github.com/Josverl/mpremote.git", rev = "main", subdirectory = "tools/mpremote" }
+
+[tool.poetry.group.dev]
+optional = true
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.22.0"
+black = "^23.3.0"
+# testbook = "^0.4.2"
+# pytest = "^7.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# configuration for Black.
+
+# NOTE: you have to use single-quoted strings in TOML for regular expressions.
+# It's the equivalent of r-strings in Python.  Multiline strings are treated as
+# verbose regular expressions by Black.  Use [ ] to denote a significant space
+# character.
+
+[tool.black]
+line-length = 100
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.venv
+  | dist
+)/
+'''
