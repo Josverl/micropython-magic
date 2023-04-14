@@ -5,7 +5,7 @@ description = "MicroPython Magic commands for use with Jupyter notebooks"
 keywords = ["MicroPython", "stubs", "Jupyter", "notebooks", "vscode"]
 authors = ["Jos Verlinde <jos_verlinde@hotmail.com>"]
 license = "MIT"
-readme = "README.md"
+readme = "readme.md"
 
 packages = [{ include = "mpy_magic", from = "src" }]
 include = []
@@ -14,6 +14,7 @@ exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 [tool.poetry.dependencies]
 python = "^3.8"
 mpremote = { git = "https://github.com/Josverl/mpremote.git", rev = "main", subdirectory = "tools/mpremote" }
+ipykernel = "^6.22.0"
 
 [tool.poetry.group.dev]
 optional = true

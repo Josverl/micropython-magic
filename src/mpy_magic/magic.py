@@ -11,18 +11,17 @@ Run micropython code from a a notebook
 from typing import Optional
 
 import IPython.core.magic as ipym
-from IPython.utils.text import SList
 from IPython.core.interactiveshell import InteractiveShell
+from IPython.utils.text import SList
 
-class ListOutput(object):
-    def __init__(self, slist: SList):
-        self.slist = slist
 
-    def _repr_markdown_(self):
-        return "\n".join([f" - {s}" for s in self.slist])
-
-    def __repr__(self):
-        return list(self.slist.list)
+# class ListOutput(object):
+#     def __init__(self, slist: SList):
+#         self.slist = slist
+#     def _repr_markdown_(self):
+#         return "\n".join([f" - {s}" for s in self.slist])
+#     def __repr__(self):
+#         return list(self.slist.list)
 
 
 @ipym.magics_class
@@ -47,12 +46,11 @@ class MpyMagics(ipym.Magics):
         return f"connect {self.port} " if self.port else ""
 
     @ipym.line_magic
-    def list(self, line: Optional[str]):
-        #     if not line:
-        #         print("Please specify a line of MicroPython code to execute")
+    def list_devices(self, line:str = ""):
+        if line:
+            print("no arguments expected")
         exec_cmd = "mpremote resume connect list"
         output= self.shell.getoutput(exec_cmd)
-        # print(exec        output= self.shell.getoutput(exec_cmd)
         return output.list
 
     @ipym.line_magic

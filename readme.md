@@ -2,20 +2,18 @@
 
 This is a collection of magic methods for micropython for use with Jupyter (formerly IPython Notebook)
 
-It is a work in progress.
+**This is a work in progress.**
 
 Ref:
  - https://code.visualstudio.com/docs/datascience/jupyter-notebooks
- - 
 
 
 ## Installation
 - create and activate a venv `python3 -m venv .venv`
-- install the juputer python kernel `pip install ipykernel`	
-- install the micropython magic `pip install micropython-magic`
+-  `pip install -U "git+https://github.com/josverl/micropython-magic"`
 
 Recommended : install stubs 
-- install micropython syntax checking `pip install micropython-esp32-stubs`
+- install stubs for MicroPython syntax checking `pip install micropython-esp32-stubs`
 
 
  - [x] run a code cell on a MCU 
@@ -43,8 +41,6 @@ Recommended : install stubs
    - [ ] read sensand build series 
    - [ ] flash a mcu ( sample per port )
 
-
-
 ## Usage
 
 Create a notebook 
@@ -52,7 +48,7 @@ Create a notebook
 Load the magic
 
 ```python
-%load_ext micropython_magic
+%load_ext mpy_magic
 ```
 
 turn on the tled connected to pin 25 on the first connected device 

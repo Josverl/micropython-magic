@@ -1,8 +1,10 @@
-
+# python stuff 
 **/__pycache__
-
 .venv
 dist
 
+# ignore python files from the samples directory
 samples/*.py
-.gitignore
+
+# ignore temp file to send the cell to the MCU
+temp.py
