@@ -48,7 +48,7 @@ Create a notebook
 Load the magic
 
 ```python
-%load_ext mpy_magic
+%load_ext micropython-magic
 ```
 
 turn on the tled connected to pin 25 on the first connected device 

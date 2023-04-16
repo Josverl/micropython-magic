@@ -1,0 +1,26 @@
+{
+    "jupyter.interactiveWindow.textEditor.magicCommandsAsComments": true,
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#821af6",
+        "activityBar.background": "#821af6",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#f5790a",
+        "activityBarBadge.foreground": "#15202b",
+        "commandCenter.border": "#e7e7e799",
+        "editorGroup.border": "#821af6",
+        "panel.border": "#821af6",
+        "sash.hoverBorder": "#821af6",
+        "statusBar.background": "#6908d5",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#821af6",
+        "statusBarItem.remoteBackground": "#6908d5",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "tab.activeBorder": "#821af6",
+        "titleBar.activeBackground": "#6908d5",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#6908d599",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#6908d5"
+}

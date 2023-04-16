@@ -9,11 +9,12 @@ Run micropython code from a a notebook
 
 
 from typing import Optional
+from warnings import warn
 
 import IPython.core.magic as ipym
+from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.utils.text import SList
-
 
 # class ListOutput(object):
 #     def __init__(self, slist: SList):
@@ -68,7 +69,7 @@ class MpyMagics(ipym.Magics):
         return output
 
     @ipym.line_cell_magic
-    def micropython(self, line: str, cell: Optional[str] = None):
+    def mpy(self, line: str, cell: Optional[str] = None):
         """Run Micropython code on an attached device using mpremote."""
         # Define the source and executable filenames.
         output = SList()
@@ -111,6 +112,17 @@ class MpyMagics(ipym.Magics):
         output= self.shell.getoutput(cmd)
         self.output = output
         return output
+
+    @ipym.line_magic
+    def foo(self, line: str):
+        print(line)
+        raise UsageError(line)
+
+    @ipym.line_cell_magic
+    def bar(self, line: str, cell: Optional[str] = None):
+        print (line, cell)
+
+
 
     @ipym.line_magic
     def mpremote(self, line: str):
