@@ -1,6 +1,9 @@
 # python stuff 
 **/__pycache__
 .venv
+.ipynb_checkpoints
+
+# packaging stuff
 dist
 
 # ignore python files from the samples directory

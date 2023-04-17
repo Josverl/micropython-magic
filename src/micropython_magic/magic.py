@@ -46,7 +46,8 @@ class MpyMagics(ipym.Magics):
         "creates connect to strign if port is specified"
         return f"connect {self.port} " if self.port else ""
 
-    @ipym.line_magic
+
+    @ipym.line_magic("list_devices")
     def list_devices(self, line:str = ""):
         if line:
             print("no arguments expected")
@@ -54,7 +55,7 @@ class MpyMagics(ipym.Magics):
         output= self.shell.getoutput(exec_cmd)
         return output.list
 
-    @ipym.line_magic
+    @ipym.line_magic("connect")
     def connect(self, line: Optional[str]):
         output = SList()
         if not line:
@@ -68,7 +69,7 @@ class MpyMagics(ipym.Magics):
             output= self.shell.getoutput(exec_cmd)
         return output
 
-    @ipym.line_cell_magic
+    @ipym.line_cell_magic("mpy")
     def mpy(self, line: str, cell: Optional[str] = None):
         """Run Micropython code on an attached device using mpremote."""
         # Define the source and executable filenames.
@@ -93,7 +94,7 @@ class MpyMagics(ipym.Magics):
         #
         return output.list
 
-    @ipym.line_magic
+    @ipym.line_magic("exec")
     def exec(self, line: str):
         """Run Micropython code on an attached device using mpremote."""
         # Define the source and executable filenames.
@@ -103,7 +104,7 @@ class MpyMagics(ipym.Magics):
         self.output = output
         return output
 
-    @ipym.line_magic
+    @ipym.line_magic("eval")
     def eval(self, line: str):
         """Run Micropython code on an attached device using mpremote."""
         # Define the source and executable filenames.
@@ -113,20 +114,10 @@ class MpyMagics(ipym.Magics):
         self.output = output
         return output
 
-    @ipym.line_magic
-    def foo(self, line: str):
-        print(line)
-        raise UsageError(line)
 
-    @ipym.line_cell_magic
-    def bar(self, line: str, cell: Optional[str] = None):
-        print (line, cell)
-
-
-
-    @ipym.line_magic
+    @ipym.line_magic("mpremote")
     def mpremote(self, line: str):
-        """run a mpremote command"""
+        """Run a mpremote command with the commandline options"""
         cmd = f'mpremote "{line}"'
         output= self.shell.getoutput(cmd)
         self.output = output
