@@ -49,15 +49,22 @@ Recommended : install stubs
        ```
    - [x] get the output from the MCU into a python variable `local = %eval remote`
    - [ ] plot data from a MCU
+        using bqplot ( > pyplot > vscode-Jupyter) 
+- 
+  
    - [ ] copy/echo MCU global vars to local vars ( sync_from / sync_to)?
-   - [ ] get a data series onto the noteboot and plot the outcome 
+   - [ ] get a data series onto the notebook and plot the outcome 
    - [ ] loop and update plot 
-         (https://stackoverflow.com/questions/15635341/run-parts-of-a-ipython-notebook-in-a-loop-with-different-input-parameter)
+         https://ipywidgets.readthedocs.io/en/7.x/examples/Widget%20Asynchronous.html#Updating-a-widget-in-the-background
    - [ ] long running via mqtt ?
  - [ ] is there a way to avoid needing to set %%micropython on all cells ?
-   - [ ] blink
-   - [ ] list connected boards and loop through them 
-   - [ ] read sensor and build series ( file / list / plot)
+
+Samples
+   - [x] Install
+   - [x] basic board control
+   - [x] blink
+   - [x] list connected boards and loop through them 
+   - [~] read sensor and build series ( file / list / plot)
    - [ ] flash a mcu with new firmware ( sample per port )
    - [ ] mip install 
    - [ ] upload a repo / folder to a MCU
@@ -85,4 +92,20 @@ List the connected devices
 ```python
 %list
 ```
+
+## Automatically load the magic on startup
+
+In order to automatically load the magic on startup, you can add the following to your `ipython_config.py` file:
+
+- create a ipython profile 
+  - `ipython profile create`
+  - add the following to the configuration file (`.../.ipython/profile_default/ipython_config.py`)
+
+    ```python
+    c = get_config()  #noqa
+
+    c.InteractiveShellApp.extensions = [
+        'micropython_magic'
+    ]
+    ```
 
