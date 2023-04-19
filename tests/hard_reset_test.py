@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 
 import pytest
 from testbook import testbook
@@ -9,8 +8,11 @@ from testbook import testbook
 if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+# TODO: fix this test for rp2040
+pytest.skip(allow_module_level=True, reason="hardware reset does not work on rp2040 devices")
 
-# fixturte to execute the notebook once for all tests in this file
+
+# fixture to execute the notebook once for all tests in this file
 @pytest.fixture(scope="module")
 def tb():
     fname = __file__.replace("_test.py", ".ipynb")

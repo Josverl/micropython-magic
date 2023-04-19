@@ -19,13 +19,12 @@ def tb():
         yield tb
 
 
-def test_cell_magics_registered(tb):
-    cellnum = 3
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
-    assert "'Other'" in tb.cell_output_text(cellnum)
+def test_value_retained(tb):
+    cellnum = 2
+    assert "persistent" in tb.cell_output_text(cellnum)
 
 
-def test_line_magics_registered(tb):
-    cellnum = 4
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
-    assert "'Other'" in tb.cell_output_text(cellnum)
+def test_value_cleared(tb):
+    cellnum = 5
+    # ugly \\\' is because of the way testbook handles output
+    assert "\\'foo\\' isn\\'t defined" in tb.cell_output_text(cellnum)

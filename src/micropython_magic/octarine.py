@@ -167,9 +167,9 @@ class MpyMagics(Magics):
         self.output = output
         return just_text(output)
 
-    @line_magic("reset")
+    @line_magic("soft-reset")
     @output_can_be_silenced
-    def reset(self, line: str):
+    def soft_reset(self, line: str):
         """
         Perform a soft-reset on the current Micropython device.
 
@@ -178,6 +178,22 @@ class MpyMagics(Magics):
         # Assemble the command to run
         # Append an eval statement to avoid ending up in the repl
         cmd = f"{self.cmd_prefix} soft-reset eval True"
+        # print(cmd)
+        output = self.shell.getoutput(cmd)
+        self.output = output
+        return just_text(output)
+
+    @line_magic("hard-reset")
+    @output_can_be_silenced
+    def hard_reset(self, line: str):
+        """
+        Perform a hard-reset on the current Micropython device.
+
+        - can be silenced with a trailing semicolon when used as a line magic
+        """
+        # Assemble the command to run
+        # Append an eval statement to avoid ending up in the repl
+        cmd = f"{self.cmd_prefix} reset"
         # print(cmd)
         output = self.shell.getoutput(cmd)
         self.output = output
