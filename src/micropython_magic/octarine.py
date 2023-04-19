@@ -27,6 +27,8 @@ from IPython.utils.text import LSString, SList
 
 
 class PrettyOutput(object):
+    """"""
+
     def __init__(self, output: Union[SList, LSString]):
         self.output = output
 
@@ -44,6 +46,7 @@ class PrettyOutput(object):
 
 
 def just_text(output) -> str:
+    """returns the text output of the command"""
     if isinstance(output, SList):
         return "\n".join(output.list)
     elif isinstance(output, LSString):
@@ -75,6 +78,9 @@ class MpyMagics(Magics):
 
     @line_magic("list_devices")
     def list_devices(self, line: str = "") -> list:
+        """
+        Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
+        """
         if line:
             print("no arguments expected")
         exec_cmd = "mpremote resume connect list"
@@ -90,6 +96,9 @@ class MpyMagics(Magics):
     @line_magic("select")
     @output_can_be_silenced
     def select(self, line: Optional[str]):
+        """
+        Select the device to connect to by specifying the serial port name.
+        """
         output = None
         if not line:
             # connect to the first/default
@@ -109,20 +118,22 @@ class MpyMagics(Magics):
         """
         Run Micropython code on an attached device using mpremote.
         """
-        # Define the source and executable filenames.
+        # Assemble the command to run
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
         if line:
             print("line specified", line)
 
         source_filename = "temp.py"
+        # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
+        # - may need escaping quotes and newlines
         with open(source_filename, "w") as f:
             f.write(cell)
         # copy the file to the device
         copy_cmd = self.cmd_prefix + "cp {0:s} :".format(source_filename)
-        exec_cmd = self.cmd_prefix + "exec \"exec( open('temp.py').read() , globals() )\""
         _ = self.shell.getoutput(copy_cmd)
         # log(exec_cmd)
+        exec_cmd = self.cmd_prefix + "exec \"exec( open('temp.py').read() , globals() )\""
         output = self.shell.getoutput(exec_cmd)
         return PrettyOutput(output)
 
@@ -134,26 +145,12 @@ class MpyMagics(Magics):
 
         - can be silenced with a trailing semicolon when used as a line magic
         """
-        # Define the source and executable filenames.
+        # Assemble the command to run
         exec_cmd = f'{self.cmd_prefix}exec "{line}"'
         # print(exec_cmd)
         output = self.shell.getoutput(exec_cmd)
         self.output = output
         return PrettyOutput(output)
-
-    # @line_magic("eval")
-    # @output_can_be_silenced
-    # def mpy_eval(self, line: str):
-    #     """
-    #     Run Micropython code on an attached device using mpremote.
-    #     - can be silenced with a trailing semicolon when used as a line magic
-    #     """
-    #     # Define the source and executable filenames.
-    #     exec_cmd = f'{self.cmd_prefix}exec "{line}"'
-    #     print(exec_cmd)
-    #     output = self.shell.getoutput(exec_cmd)
-    #     self.output = output
-    #     return PrettyOutput(output)
 
     @line_magic("eval")
     @output_can_be_silenced
@@ -163,8 +160,24 @@ class MpyMagics(Magics):
 
         - can be silenced with a trailing semicolon when used as a line magic
         """
-        # Define the source and executable filenames.
+        # Assemble the command to run
         cmd = f'{self.cmd_prefix}eval "{line}"'
+        # print(cmd)
+        output = self.shell.getoutput(cmd)
+        self.output = output
+        return just_text(output)
+
+    @line_magic("reset")
+    @output_can_be_silenced
+    def reset(self, line: str):
+        """
+        Perform a soft-reset on the current Micropython device.
+
+        - can be silenced with a trailing semicolon when used as a line magic
+        """
+        # Assemble the command to run
+        # Append an eval statement to avoid ending up in the repl
+        cmd = f"{self.cmd_prefix} soft-reset eval True"
         # print(cmd)
         output = self.shell.getoutput(cmd)
         self.output = output
@@ -177,11 +190,3 @@ class MpyMagics(Magics):
         output = self.shell.getoutput(cmd)
         self.output = output
         return output
-
-    # @cell_magic
-    # def slow_magic(self, line, cell):
-    #     """Run a cell with a magic function."""
-    #     for i in range(3):
-    #         print(i, "wait for it")
-    #         sleep(1)
-    #     print("done")
