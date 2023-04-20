@@ -23,7 +23,7 @@ python = "^3.8"
 mpremote = { git = "https://github.com/Josverl/mpremote.git", rev = "main", subdirectory = "tools/mpremote" }
 
 [tool.poetry.extras]
-widgets = ["bqplot","numpy"]
+widgets = ["bqplot", "numpy"]
 
 [tool.poetry.group.dev]
 optional = true
@@ -34,6 +34,8 @@ testbook = "^0.4.2"
 pytest = "^7.3.0"
 bqplot = "^0.12.39"
 numpy = "^1.24.2"
+notebook = "^6.5.4"
+pylance = "^0.4.3"
 
 
 [build-system]

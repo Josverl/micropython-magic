@@ -10,5 +10,3 @@ dist
 .scratch
 samples/*.py
 
-# ignore temp file to send the cell to the MCU
-temp.py
