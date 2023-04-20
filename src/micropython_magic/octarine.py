@@ -7,12 +7,13 @@ Run micropython code from a a notebook
 # https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
 # https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
 
-
-from time import sleep
+import re
+import tempfile
+from pathlib import Path
 from typing import Optional, Union
 from warnings import warn
 
-import IPython.core.magic as ipym
+from colorama import Style
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import (
@@ -24,6 +25,11 @@ from IPython.core.magic import (
     output_can_be_silenced,
 )
 from IPython.utils.text import LSString, SList
+from mpremote import pyboard, pyboardextended
+
+
+def log(*args, **kwargs):
+    print(Style.DIM, *args, **kwargs)
 
 
 class PrettyOutput(object):
@@ -123,17 +129,32 @@ class MpyMagics(Magics):
             raise UsageError("Please specify some MicroPython code to execute")
         if line:
             print("line specified", line)
+        if False and len(cell) < 100:
+            # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
+            # - may need escaping quotes and newlines
+            raise NotImplementedError("pyboardextended exec not implemented yet")
+            log("cell is small enough to use exec")
 
-        source_filename = "temp.py"
-        # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
-        # - may need escaping quotes and newlines
-        with open(source_filename, "w") as f:
-            f.write(cell)
-        # copy the file to the device
-        copy_cmd = self.cmd_prefix + "cp {0:s} :".format(source_filename)
-        _ = self.shell.getoutput(copy_cmd)
+            exec_cmd = f'{self.cmd_prefix}exec "{cell}"'
+            log(exec_cmd)
+
+        else:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+                f.write(cell)
+                f.close()
+                # copy the file to the device
+                copy_cmd = self.cmd_prefix + "cp {0:s} :__magic.py".format(f.name)
+                # TODO: detect / retry / report errors copying the file
+                _ = self.shell.getoutput(copy_cmd)
+                # log(_)
+                # log(f.name, "copied to device")
+                Path(f.name).unlink()
+                # run the transferred cell/file
+                exec_cmd = (
+                    self.cmd_prefix + "exec \"exec( open('__magic.py').read() , globals() )\""
+                )
+
         # log(exec_cmd)
-        exec_cmd = self.cmd_prefix + "exec \"exec( open('temp.py').read() , globals() )\""
         output = self.shell.getoutput(exec_cmd)
         return PrettyOutput(output)
 
