@@ -3,10 +3,8 @@ Run micropython code from a a notebook
  - connects to the first MCU connected on serial
  - uses resume to avoid soft-resetting the MCU
 """
-# https://ipython.readthedocs.io/en/stable/config/custommagics.html
-# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
-# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
 
+import contextlib
 import json
 import logging
 import re
@@ -32,6 +30,10 @@ from IPython.utils.text import LSString, SList
 from loguru import logger as log
 from mpremote import pyboard, pyboardextended
 
+# https://ipython.readthedocs.io/en/stable/config/custommagics.html
+# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
+# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
+
 
 def set_log_level(llevel: str):
     # format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
@@ -41,8 +43,9 @@ def set_log_level(llevel: str):
     log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
 
 
+JSON_START = "<json~"
+JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
-"""unknown type"""
 
 set_log_level("INFO")
 
@@ -134,7 +137,7 @@ class MPRemote2:
     def load_json_from_MCU(line: str):
         """try to load the output from the MCU transferred as json"""
         result = DONT_KNOW
-        if line.startswith("<json~") and line.endswith("~json>"):
+        if line.startswith(JSON_START) and line.endswith(JSON_END):
             # remove the json wrapper
             line = line[7:-7]
             if line == "none":
@@ -142,19 +145,11 @@ class MPRemote2:
             try:
                 result = json.loads(line)
             except json.JSONDecodeError as e:
-                try:
-                    if line.startswith("{") and line.endswith("}"):
-                        log.debug(" '{ }' detected - trying to eval the output")
-                        result = eval(line)
-                    elif "(" in line:  # perhaps this is wrapped in a type -(top level only?)
-                        log.debug(" '(' detected - trying to eval the output")
-                        result = eval(line)
-                    else:
-                        result = eval(line)
-                except Exception as e:
-                    result = None
+                with contextlib.suppress(Exception):
+                    result = eval(line)
             except Exception as e:
-                result = None
+                # result = None
+                pass
         return result
 
 
@@ -247,7 +242,7 @@ class MpyMagics(Magics):
         """
         # Assemble the command to run
         statement = line.strip()
-        cmd = f'''exec "import json; print('<json~',json.dumps({statement}),'~json>')"'''
+        cmd = f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
         # print(cmd)
         output = self.MCU.run_cmd(cmd)
         matchers = [r"^.*Error:", r"^.*Exception:"]
@@ -257,7 +252,7 @@ class MpyMagics(Magics):
             if any(re.match(m, ln) for m in matchers):
                 raise RuntimeError(ln) from eval(ln.split(":")[0])
             # check for json output and try to convert it
-            if ln.startswith("<json~") and ln.endswith("~json>"):
+            if ln.startswith(JSON_START) and ln.endswith(JSON_END):
                 result = self.MCU.load_json_from_MCU(ln)
                 if result != DONT_KNOW:
                     return result
