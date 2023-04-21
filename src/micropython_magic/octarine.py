@@ -7,13 +7,15 @@ Run micropython code from a a notebook
 # https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
 # https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
 
+import logging
 import re
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional, Union
-from warnings import warn
 
 from colorama import Style
+from IPython.core.display import HTML, Javascript, Markdown, Pretty, TextDisplayObject, display
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import (
@@ -25,29 +27,30 @@ from IPython.core.magic import (
     output_can_be_silenced,
 )
 from IPython.utils.text import LSString, SList
+from loguru import logger as log
 from mpremote import pyboard, pyboardextended
 
+format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
+log.remove(0)
+log.add(sys.stdout, format=format_str, level="INFO", colorize=True)
+# logging.basicConfig(level=logging.INFO)
+# log = logging.getLogger(__name__)
 
-def log(*args, **kwargs):
-    print(Style.DIM, *args, **kwargs)
 
-
-class PrettyOutput(object):
-    """"""
-
-    def __init__(self, output: Union[SList, LSString]):
-        self.output = output
+class PrettyOutput(TextDisplayObject):
+    def __init__(self, data: Union[SList, LSString]):
+        self.data = data
 
     def __getattr__(self, item):
-        return getattr(self.output, item)
+        return getattr(self.data, item)
 
     def __repr__(self):
-        if isinstance(self.output, SList):
-            return "\n".join(self.output.list)
-        elif isinstance(self.output, LSString):
-            return self.output
+        if isinstance(self.data, SList):
+            return "\n".join(self.data.list)
+        elif isinstance(self.data, LSString):
+            return self.data
         else:
-            self.output
+            self.data
             raise UsageError("Unexpected output type")
 
 
@@ -79,7 +82,7 @@ class MpyMagics(Magics):
 
     @property
     def connect_to(self):
-        "creates connect to strign if port is specified"
+        "Creates mpremote 'connect to string' if port is specified."
         return f"connect {self.port} " if self.port else ""
 
     @line_magic("list_devices")
@@ -115,7 +118,7 @@ class MpyMagics(Magics):
         exec_cmd = (
             f"""{self.cmd_prefix}eval \"'Checking connection to MCU on port {self.port}.'\""""
         )
-        # log.warn(exec_cmd)
+        log.debug(exec_cmd)
         output = self.shell.getoutput(exec_cmd)
         return just_text(output)
 
@@ -133,10 +136,10 @@ class MpyMagics(Magics):
             # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
             # - may need escaping quotes and newlines
             raise NotImplementedError("pyboardextended exec not implemented yet")
-            log("cell is small enough to use exec")
+            log.info("cell is small enough to use exec")
 
             exec_cmd = f'{self.cmd_prefix}exec "{cell}"'
-            log(exec_cmd)
+            log.info(exec_cmd)
 
         else:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
@@ -146,15 +149,15 @@ class MpyMagics(Magics):
                 copy_cmd = self.cmd_prefix + "cp {0:s} :__magic.py".format(f.name)
                 # TODO: detect / retry / report errors copying the file
                 _ = self.shell.getoutput(copy_cmd)
-                # log(_)
-                # log(f.name, "copied to device")
+                # log.info(_)
+                # log.info(f.name, "copied to device")
                 Path(f.name).unlink()
                 # run the transferred cell/file
                 exec_cmd = (
                     self.cmd_prefix + "exec \"exec( open('__magic.py').read() , globals() )\""
                 )
 
-        # log(exec_cmd)
+        # log.info(exec_cmd)
         output = self.shell.getoutput(exec_cmd)
         return PrettyOutput(output)
 
