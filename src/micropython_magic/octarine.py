@@ -41,6 +41,9 @@ def set_log_level(llevel: str):
     log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
 
 
+DONT_KNOW = "<~?~>"
+"""unknown type"""
+
 set_log_level("INFO")
 
 
@@ -130,10 +133,12 @@ class MPRemote2:
     @staticmethod
     def load_json_from_MCU(line: str):
         """try to load the output from the MCU transferred as json"""
-        result = None
+        result = DONT_KNOW
         if line.startswith("<json~") and line.endswith("~json>"):
             # remove the json wrapper
             line = line[7:-7]
+            if line == "none":
+                return None
             try:
                 result = json.loads(line)
             except json.JSONDecodeError as e:
@@ -144,8 +149,12 @@ class MPRemote2:
                     elif "(" in line:  # perhaps this is wrapped in a type -(top level only?)
                         log.debug(" '(' detected - trying to eval the output")
                         result = eval(line)
+                    else:
+                        result = eval(line)
                 except Exception as e:
                     result = None
+            except Exception as e:
+                result = None
         return result
 
 
@@ -241,7 +250,7 @@ class MpyMagics(Magics):
         cmd = f'''exec "import json; print('<json~',json.dumps({statement}),'~json>')"'''
         # print(cmd)
         output = self.MCU.run_cmd(cmd)
-        matchers = [r".*Error:", r".*Exception:"]
+        matchers = [r"^.*Error:", r"^.*Exception:"]
 
         for ln in output.l:
             # check for errors and raise them
@@ -249,7 +258,8 @@ class MpyMagics(Magics):
                 raise RuntimeError(ln) from eval(ln.split(":")[0])
             # check for json output and try to convert it
             if ln.startswith("<json~") and ln.endswith("~json>"):
-                if result := self.MCU.load_json_from_MCU(ln):
+                result = self.MCU.load_json_from_MCU(ln)
+                if result != DONT_KNOW:
                     return result
         return output
 

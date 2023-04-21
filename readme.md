@@ -119,6 +119,7 @@ Recommended : install stubs
          https://ipywidgets.readthedocs.io/en/7.x/examples/Widget%20Asynchronous.html#Updating-a-widget-in-the-background
    - [ ] long running via mqtt / async / folder mount ?
  - [ ] is there a way to avoid needing to set %%micropython on all cells ?
+ - [ ] %timeit / %%timeit for micropython code 
 
 Samples
    - [x] Install
@@ -129,4 +130,20 @@ Samples
    - [ ] flash a mcu with new firmware ( sample per port )
    - [ ] mip install 
    - [ ] upload a repo / folder to a MCU
-   - [ ] 
+
+## development
+## Testing 
+
+- using Pytest
+- using testbook for testing notebooks
+  - located in the `./tests/` folder
+  - tests are paired with notebooks that contain the cells and magic commands to be tested
+  - tests have not been mocked - and therefore require a connected MCU to run ( rp2040 )
+
+- TODO: add tests for (remote) kernels 
+  - [x] Local (on windows)
+  - [ ] on windows 
+  - [ ] on linux
+  - [ ] jupyter notebook
+  - [ ] jupyter labs 
+
