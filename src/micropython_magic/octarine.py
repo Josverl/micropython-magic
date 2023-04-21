@@ -11,6 +11,7 @@ import logging
 import re
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Optional, Union
 
@@ -37,7 +38,9 @@ log.add(sys.stdout, format=format_str, level="INFO", colorize=True)
 # log = logging.getLogger(__name__)
 
 
-class PrettyOutput(TextDisplayObject):
+class PrettyOutput(object):
+    """"""
+
     def __init__(self, data: Union[SList, LSString]):
         self.data = data
 
@@ -230,3 +233,26 @@ class MpyMagics(Magics):
         output = self.shell.getoutput(cmd)
         self.output = output
         return output
+
+    @line_magic("jv")
+    def jv(self, line: str):
+        """just something to test"""
+        log.warning("jv")
+        x = {"a": 1, "b": 2, "c": [1, 2, 3]}
+        return Pretty(x)
+        output = ["['lib', 'temp.py', 'System Volume Information']", "OSError('boo')", "esp32"]
+        return Pretty("\n".join(output))
+
+        if isinstance(output, list):
+            # ths is a multiline output from mpremote
+            output_ = []
+            for line in output:
+                try:
+                    line_ = eval(line)
+                    output_.append(line_)
+                except Exception as e:
+                    output_.append(line)
+            # display(Pretty("\n".join(output)))
+            return Pretty("\n".join(output))
+        #     return
+        # return x
