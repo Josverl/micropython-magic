@@ -4,6 +4,7 @@ import re
 
 import pytest
 from testbook import testbook
+from testbook.client import TestbookNotebookClient
 
 # avoid RuntimeWarning: Proactor event loop does not implement add_reader
 if os.name == "nt":
@@ -15,17 +16,11 @@ if os.name == "nt":
 def tb():
     fname = __file__.replace("_test.py", ".ipynb")
     print(f"Executing notebook {fname}")
-    with testbook(fname, execute=True, allow_errors=True) as tb:
+    with testbook(fname, execute=True) as tb:
         yield tb
 
 
-def test_value_retained(tb):
-    cellnum = 2
-    assert "persistent" in tb.cell_output_text(cellnum)
-
-
-def test_value_cleared(tb):
-    cellnum = 5
-    assert "error" in tb.cells[5]["outputs"][0]["output_type"]
-    assert "foo" in tb.cells[5]["outputs"][0]["evalue"]
-    assert "NameError" in tb.cells[5]["outputs"][0]["evalue"]
+# testbook.client.TestbookNotebookClient
+def test_notebook_ran_ok(tb: TestbookNotebookClient):
+    # if any of the cells raised an assertion error, this will fail the test
+    assert tb.code_cells_executed > 0  # at least one cell executed

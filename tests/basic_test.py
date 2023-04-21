@@ -48,7 +48,7 @@ def test_list_devices_2(tb):
 
 def test_eval(tb):
     cellnum = 8
-    assert tb.cell_output_text(cellnum) == "'14'"
+    assert tb.cell_output_text(cellnum) == "14"
 
 
 def test_mpy_line(tb):

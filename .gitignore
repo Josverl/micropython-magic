@@ -7,6 +7,6 @@
 dist
 
 # ignore python files from the samples directory
-.scratch
+scratch
 samples/*.py
 

@@ -53,7 +53,13 @@ In order to automatically load the magic on startup, you can add the following t
     ]
     ```
 
-## Work in progress 
+# Pylance for Jupyter Notebooks
+
+https://github.com/microsoft/vscode-jupyter/wiki/Intellisense-for-notebooks
+
+- but how to enable this for cell magics %%micropython ? [#1](https://github.com/Josverl/micropython-magic/issues/1)
+  there seems to be some way provisioned for this using the #! notation 
+- https://github.com/microsoft/vscode-jupyter/blob/27174e1ce07b51e312f698bef81dd453f533e8fd/src/interactive-window/editor-integration/codeGenerator.ts#L76-L108## Work in progress 
 
 
 Recommended : install stubs 
@@ -68,7 +74,7 @@ Recommended : install stubs
    - [x] soft-reset a MCU
    - [/] hard-reset a MCU
        - only works on non-rp2040 devices 
-       - report / fix hardware reset  issue on rp2040 `machine.reset()`
+       - report / fix hardware reset  issue on rp2040 `machine.reset()` ?
    - [ ] mip install 
    - [ ] direct - copy file / files to / from 
    - [ ] mount folder 
@@ -98,6 +104,9 @@ Recommended : install stubs
             the corresponding ``load_ext`` will be called just before trying to invoke the magic.
        ```
    - [x] get the output from the MCU into a python variable `local = %eval remote`
+         - eval is not quite the same as mpremote
+         - retain type through json ?
+         - [?] can this be done with repr(insted) of json ?
    - [x] plot data from a MCU
             - using bqplot ( > pyplot > vscode-Jupyter) 
             - add documentation / sample
