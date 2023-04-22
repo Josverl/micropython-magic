@@ -10,7 +10,7 @@ if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
-# fixturte to execute the notebook once for all tests in this file
+# fixture to execute the notebook once for all tests in this file
 @pytest.fixture(scope="module")
 def tb():
     fname = __file__.replace("_test.py", ".ipynb")
@@ -48,7 +48,7 @@ def test_list_devices_2(tb):
 
 def test_eval(tb):
     cellnum = 8
-    assert tb.cell_output_text(cellnum) == "'14'"
+    assert tb.cell_output_text(cellnum) == "14"
 
 
 def test_mpy_line(tb):

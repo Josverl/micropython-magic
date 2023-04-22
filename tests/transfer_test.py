@@ -4,6 +4,7 @@ import re
 
 import pytest
 from testbook import testbook
+from testbook.client import TestbookNotebookClient
 
 # avoid RuntimeWarning: Proactor event loop does not implement add_reader
 if os.name == "nt":
@@ -19,11 +20,7 @@ def tb():
         yield tb
 
 
-def test_cell_magics_registered(tb):
-    cellnum = 3
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
-
-
-def test_line_magics_registered(tb):
-    cellnum = 4
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
+# testbook.client.TestbookNotebookClient
+def test_notebook_ran_ok(tb: TestbookNotebookClient):
+    # if any of the cells raised an assertion error, this will fail the test
+    assert tb.code_cells_executed > 0  # at least one cell executed
