@@ -10,22 +10,19 @@ import logging
 import re
 import sys
 import tempfile
+import time
 import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
+import IPython
 from colorama import Style
-from IPython.core.display import HTML, Javascript, Markdown, Pretty, TextDisplayObject, display
+from IPython.core.display import (HTML, Javascript, Markdown, Pretty,
+                                  TextDisplayObject, display)
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.core.magic import (
-    Magics,
-    cell_magic,
-    line_magic,
-    magics_class,
-    needs_local_scope,
-    output_can_be_silenced,
-)
+from IPython.core.magic import (Magics, cell_magic, line_magic, magics_class,
+                                needs_local_scope, output_can_be_silenced)
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 from mpremote import pyboard, pyboardextended
@@ -53,20 +50,32 @@ set_log_level("INFO")
 class PrettyOutput(object):
     """"""
 
-    def __init__(self, data: Union[SList, LSString]):
+    def __init__(self, data):
         self.data = data
 
     def __getattr__(self, item):
         return getattr(self.data, item)
 
     def __repr__(self):
-        if isinstance(self.data, SList):
-            return "\n".join(self.data.list)
-        elif isinstance(self.data, LSString):
-            return self.data
-        else:
-            self.data
-            raise UsageError("Unexpected output type")
+        return repr(self.data)
+    
+    def _str_(self):
+        return "\n".join(self.data.list)
+
+    # def _repr_pretty_(self, pp, cycle):
+    #     timefmt = "%a %b %d %H:%M:%S %Y %Z"
+    #     text = "Software versions\n"
+    #     text += "-----------------\n"
+    #     text += "Python %s\n" % sys.version
+    #     # for name, version in self.packages:
+    #     #     text += "%s %s\n" % (name, version)
+    #     text += "IPython %s\n" % IPython.__version__
+    #     text += "Timestamp %s\n" % time.strftime(timefmt)
+    #     pp.text(text)S
+
+    def _repr_json_(self):
+        return self.data
+        # return json.dumps(self.data, indent=2)
 
 
 def just_text(output) -> str:
@@ -100,7 +109,11 @@ class MPRemote2:
         if auto_connect:
             cmd = f"""{self.cmd_prefix} {cmd}"""
         log.debug(cmd)
-        return self.shell.getoutput(cmd)
+        output = self.shell.getoutput(cmd, split=True)
+        assert isinstance(output, SList)
+        if len(output)> 0 and  output[0].strip() == 'no device found':
+            raise ConnectionError('no device found')
+        return output
 
     def select_device(self, line: Optional[str]):
         """try to select the device to connect to by specifying the serial port name."""
@@ -296,7 +309,8 @@ class MpyMagics(Magics):
         """just something to test"""
         # log.warning("some warning")
         x = {"a": 1, "b": 2, "c": [1, 2, 3]}
-        return Pretty(x)
+        return PrettyOutput(x)
+        # return Pretty(x)
         # output = ["['lib', 'temp.py', 'System Volume Information']", "OSError('boo')", "esp32"]
         # return Pretty("\n".join(output))
 
