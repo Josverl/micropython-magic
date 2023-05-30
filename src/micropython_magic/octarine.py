@@ -23,6 +23,8 @@ from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import (Magics, cell_magic, line_magic, magics_class,
                                 needs_local_scope, output_can_be_silenced)
+from IPython.core.magic_arguments import (argument, magic_arguments,
+                                          parse_argstring)
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 from mpremote import pyboard, pyboardextended
@@ -126,25 +128,31 @@ class MPRemote2:
             output = e
         return output
 
-    def run_codeblock(self, cell: str):
+    def run_cell(self, cell: str):
         """run a codeblock on the device and return the output"""
-
         #     # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
         #     # - may need escaping quotes and newlines
+        # copy the cell to a file on the device
+        self.cell_to_mcu_file(cell, "__magic.py")
+        # run the transferred cell/file
+        return self.run_mcu_file("__magic.py")
 
+    def run_mcu_file(self, filename):
+        exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
+        return self.run_cmd(exec_cmd)
+
+    def cell_to_mcu_file(self, cell, filename):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("# Jupyter cell\n") # add a line to replace the cell magic to keep the line numbers aligned
             f.write(cell)
             f.close()
             # copy the file to the device
-            copy_cmd = "cp {0:s} :__magic.py".format(f.name)
+            copy_cmd = f"cp {f.name} :{filename}"
             # TODO: detect / retry / report errors copying the file
             _ = self.run_cmd(copy_cmd)
             # log.info(_)
             # log.info(f.name, "copied to device")
             Path(f.name).unlink()
-            # run the transferred cell/file
-            exec_cmd = "exec \"exec( open('__magic.py').read() , globals() )\""
-        return self.run_cmd(exec_cmd)
 
     @staticmethod
     def load_json_from_MCU(line: str):
@@ -218,17 +226,31 @@ class MpyMagics(Magics):
 
     @cell_magic("micropython")
     @cell_magic("mpy")
+    @magic_arguments()
+    @argument("-wf","--writefile", type=str, help='MCU [path/]filename to write to',metavar="FILE")
+    @argument("-rf","--readfile", type=str, help='MCU [path/]filename to read from',metavar="FILE")    
     def mpy_cell(self, line: str, cell: Optional[str] = None):
         """
         Run Micropython code on an attached device using mpremote.
         """
+        if line:
+            args = parse_argstring(self.magic_cool, line)
+            if args.writefile:
+                log.info(f"{args.writefile=}")
+                self.MCU.cell_to_mcu_file(cell, args.writefile)
+                return
+            if args.readfile:
+                log.info(f"{args.readfile=}")
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_codeblock(cell)
+        output = self.MCU.run_cell(cell)
         return PrettyOutput(output)
 
     @line_magic("micropython")
     @line_magic("mpy")
+    # @magic_arguments()
+    # @argument("-r","--run", type=str, help='MCU [path/]filename to run',metavar="FILE")
+
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -236,11 +258,30 @@ class MpyMagics(Magics):
 
         - can be silenced with a trailing semicolon when used as a line magic
         """
+        # if line:
+        #     args = parse_argstring(self.mpy_line, line)
+        #     log.info(f"{args=}")        
         # Assemble the command to run
         cmd = f'exec "{line}"'
         # print(exec_cmd)
         output = self.MCU.run_cmd(cmd)
         return PrettyOutput(output)
+
+    @magic_arguments()
+    @argument("-wf","--writefile", type=str, help='MCU [path/]filename to write to',metavar="FILE")
+    @argument("-rf","--readfile", type=str, help='MCU [path/]filename to read from',metavar="FILE")
+    @cell_magic("cool")
+    def magic_cool(self, line, cell):
+        """\
+        A really cool magic command.
+        """
+        args = parse_argstring(self.magic_cool, line)
+        if args.writefile:
+            print(f"{args.writefile=}")
+        if args.readfile:
+            print(f"{args.readfile=}")
+        print(f"{cell=}")
+
 
     @line_magic("eval")
     def eval(self, line: str):
