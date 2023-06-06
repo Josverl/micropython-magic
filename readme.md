@@ -15,21 +15,43 @@ Ref:
 
 ## Usage
 
-Create a notebook 
+**1) Create a notebook**
 
-Load the magic
-
+**2) Load the magic**
 ```python
 %load_ext micropython_magic
 ```
+This can also be configured once to always load automatically ( see below)
 
-turn on the led on pin 25 on the first connected device 
+
+
+
+**3) add a cell with some code to run on the MCU**
 ```python
 %%micropython  
 from machine import Pin
 led = Pin(25, Pin.OUT)
 led.value(1)
 ```
+The `%%micropython` cell magic will instruct Jupyter to run the code on the connected MCU
+
+**4) enable code highlighting for MicroPython**
+```python
+%pip install micropython-esp32-stubs==1.20.0.*
+# installs the stubs for MicroPython syntax checking (one time install per environment) 
+```
+
+```python
+# %%micropython  
+from machine import Pin
+led = Pin(25, Pin.OUT)
+led.value(1)
+```
+This allows for syntax highlighting and code completion of MicroPython code.
+Tested in VSCode with
+- [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python) extension
+- [Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance) extension
+
 
 ## Advanced 
 List the connected devices 
@@ -57,13 +79,9 @@ In order to automatically load the magic on startup, you can add the following t
 
 https://github.com/microsoft/vscode-jupyter/wiki/Intellisense-for-notebooks
 
-- but how to enable this for cell magics %%micropython ? [#1](https://github.com/Josverl/micropython-magic/issues/1)
-  there seems to be some way provisioned for this using the #! notation 
-- https://github.com/microsoft/vscode-jupyter/blob/27174e1ce07b51e312f698bef81dd453f533e8fd/src/interactive-window/editor-integration/codeGenerator.ts#L76-L108## Work in progress 
-
 
 Recommended : install stubs 
-- install stubs for MicroPython syntax checking `pip install micropython-esp32-stubs`
+- [x] install stubs for MicroPython syntax checking `pip install micropython-esp32-stubs`
 
 
  - [x] run a code cell on a MCU 
@@ -85,31 +103,13 @@ Recommended : install stubs
        - [ ] %%copy_to_mcu boot.py
 - [ ] Notebook essentials
    - [x] load magics from `%pip install micropython-magic`
-   - [/] is there a way to autoload a notebook with the magic ?
-       https://github.com/ipython/ipython/issues/13493
-       https://github.com/ipython/ipython/pull/13506
-       `def register_lazy(self, name: str, fully_qualified_name: str):` ?
-       `ip.magics_manager.register_lazy("lazy_line", Path(tf.name).name[:-3])`
-       ```
-            IPython 7.32
-            ============
-            The ability to configure magics to be lazily loaded has been added to IPython.
-            See the ``ipython --help-all`` section on ``MagicsManager.lazy_magic``.
-            One can now use::
-                c.MagicsManger.lazy_magics = {
-                        "my_magic": "slow.to.import",
-                        "my_other_magic": "also.slow",
-                }
-            And on first use of ``%my_magic``, or corresponding cell magic, or other line magic,
-            the corresponding ``load_ext`` will be called just before trying to invoke the magic.
-       ```
    - [x] get the output from the MCU into a python variable `local = %eval remote`
          - eval is not quite the same as mpremote
          - retain type through json ?
          - [?] can this be done with repr(insted) of json ?
    - [x] plot data from a MCU
-            - using bqplot ( > pyplot > vscode-Jupyter) 
-            - add documentation / sample
+            - [x] using bqplot ( > pyplot > vscode-Jupyter) 
+            - [/] add documentation / sample
 -   
    - [ ] copy/echo MCU global vars to local vars ( sync_from / sync_to)?
    - [ ] get a data series onto the notebook and plot the outcome 
@@ -119,7 +119,8 @@ Recommended : install stubs
          https://ipywidgets.readthedocs.io/en/7.x/examples/Widget%20Asynchronous.html#Updating-a-widget-in-the-background
    - [ ] long running via mqtt / async / folder mount ?
  - [ ] is there a way to avoid needing to set %%micropython on all cells ?
- - [ ] %timeit / %%timeit for micropython code 
+       this could be done via an input_transformer - but keeping the state between cells may be quuite hard / confusing
+ - [ ] %timeit / %%timeit for micropython code to avoid measuring the mpremote startup overhead 
 
 Samples
    - [x] Install

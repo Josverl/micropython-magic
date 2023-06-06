@@ -7,7 +7,7 @@
 # packaging stuff
 dist
 
-# ignore python files from the samples directory
+# no scratch
 scratch
-samples/*.py
+
 
