@@ -1,5 +1,6 @@
 # python stuff 
 **/__pycache__
+**/.py_cache
 .venv
 .ipynb_checkpoints
 

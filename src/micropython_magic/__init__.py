@@ -1,26 +1,27 @@
-"""An MicroPython magic for Jupyter Notebooks"""
-__version__ = "0.1.0"
+"""MicroPython magics for Jupyter Notebooks and Labs"""
+__version__ = "0.2.0"
+__author__ = "Jos Verlinde"
 
-from warnings import warn
 
 import IPython.core.magic as ipym
+from IPython.core.events import available_events
 from IPython.core.interactiveshell import InteractiveShell
+from loguru import logger as log
 
+from .magic_transformer import comment_magic_transformer
 from .octarine import MpyMagics
+from .test_magics import TestMagics
 
 
 def load_ipython_extension(ipython: InteractiveShell):
-    # register the magics
+    # register the magics and transformer
     ipython.register_magics(MpyMagics)
-
-    # register aliases - now directly defined in the class
-    # if ipython.magics_manager and isinstance(ipython.magics_manager, ipym.MagicsManager):
-    #     ipython.magics_manager.register_alias("micropython", "mpy", magic_kind="cell")
-    #     ipython.magics_manager.register_alias("micropython", "mpy", magic_kind="line")
-    # else:
-    #     warn("No MagicsManager was found")
+    ipython.input_transformers_cleanup.append(comment_magic_transformer)
+    ipython.register_magics(TestMagics)
 
 
 def unload_ipython_extension(ipython: InteractiveShell):
     # unregister the magics, allows to unload / reload the extension
+    # ipython.magics_manager.magics["cell"].pop("mpy", None)
+    # TODO 
     pass

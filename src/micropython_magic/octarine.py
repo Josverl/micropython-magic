@@ -10,22 +10,18 @@ import logging
 import re
 import sys
 import tempfile
+import time
 import warnings
 from pathlib import Path
 from typing import List, Optional, Union
 
+import IPython
 from colorama import Style
 from IPython.core.display import HTML, Javascript, Markdown, Pretty, TextDisplayObject, display
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.core.magic import (
-    Magics,
-    cell_magic,
-    line_magic,
-    magics_class,
-    needs_local_scope,
-    output_can_be_silenced,
-)
+from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, needs_local_scope, output_can_be_silenced
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 from mpremote import pyboard, pyboardextended
@@ -53,20 +49,32 @@ set_log_level("INFO")
 class PrettyOutput(object):
     """"""
 
-    def __init__(self, data: Union[SList, LSString]):
+    def __init__(self, data):
         self.data = data
 
     def __getattr__(self, item):
         return getattr(self.data, item)
 
     def __repr__(self):
-        if isinstance(self.data, SList):
-            return "\n".join(self.data.list)
-        elif isinstance(self.data, LSString):
-            return self.data
-        else:
-            self.data
-            raise UsageError("Unexpected output type")
+        return repr(self.data)
+
+    def _str_(self):
+        return "\n".join(self.data.list)
+
+    # def _repr_pretty_(self, pp, cycle):
+    #     timefmt = "%a %b %d %H:%M:%S %Y %Z"
+    #     text = "Software versions\n"
+    #     text += "-----------------\n"
+    #     text += "Python %s\n" % sys.version
+    #     # for name, version in self.packages:
+    #     #     text += "%s %s\n" % (name, version)
+    #     text += "IPython %s\n" % IPython.__version__
+    #     text += "Timestamp %s\n" % time.strftime(timefmt)
+    #     pp.text(text)S
+
+    def _repr_json_(self):
+        return self.data
+        # return json.dumps(self.data, indent=2)
 
 
 def just_text(output) -> str:
@@ -100,7 +108,11 @@ class MPRemote2:
         if auto_connect:
             cmd = f"""{self.cmd_prefix} {cmd}"""
         log.debug(cmd)
-        return self.shell.getoutput(cmd)
+        output = self.shell.getoutput(cmd, split=True)
+        assert isinstance(output, SList)
+        if len(output) > 0 and output[0].strip() == "no device found":
+            raise ConnectionError("no device found")
+        return output
 
     def select_device(self, line: Optional[str]):
         """try to select the device to connect to by specifying the serial port name."""
@@ -113,25 +125,40 @@ class MPRemote2:
             output = e
         return output
 
-    def run_codeblock(self, cell: str):
+    def run_cell(self, cell: str):
         """run a codeblock on the device and return the output"""
-
         #     # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
         #     # - may need escaping quotes and newlines
+        # copy the cell to a file on the device
+        self.cell_to_mcu_file(cell, "__magic.py")
+        # run the transferred cell/file
+        return self.run_mcu_file("__magic.py")
 
+    def run_mcu_file(self, filename):
+        exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
+        return self.run_cmd(exec_cmd)
+
+    def cell_to_mcu_file(self, cell, filename):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("# Jupyter cell\n")  # add a line to replace the cell magic to keep the line numbers aligned
             f.write(cell)
             f.close()
             # copy the file to the device
-            copy_cmd = "cp {0:s} :__magic.py".format(f.name)
+            copy_cmd = f"cp {f.name} :{filename}"
             # TODO: detect / retry / report errors copying the file
             _ = self.run_cmd(copy_cmd)
             # log.info(_)
             # log.info(f.name, "copied to device")
             Path(f.name).unlink()
-            # run the transferred cell/file
-            exec_cmd = "exec \"exec( open('__magic.py').read() , globals() )\""
-        return self.run_cmd(exec_cmd)
+
+    def cell_from_mcu_file(self, filename):
+        """read a file from the device and return the contents"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            copy_cmd = f"cp :{filename} {f.name}"
+            # TODO: detect / retry / report errors copying the file
+            _ = self.run_cmd(copy_cmd)
+
+            return Path(f.name).read_text()
 
     @staticmethod
     def load_json_from_MCU(line: str):
@@ -205,17 +232,46 @@ class MpyMagics(Magics):
 
     @cell_magic("micropython")
     @cell_magic("mpy")
-    def mpy_cell(self, line: str, cell: Optional[str] = None):
+    @magic_arguments()
+    @argument("-wf", "--writefile", type=str, help="MCU [path/]filename to write to", metavar="FILE")
+    @argument("-rf", "--readfile", type=str, help="MCU [path/]filename to read from", metavar="FILE")
+    # @argument("-n","--new", default=False, action="store_true",help="new cell is added after the current cell instead of replacing it")
+    def micropython(self, line: str, cell: Optional[str] = None):
         """
         Run Micropython code on an attached device using mpremote.
         """
+        if line:
+            args = parse_argstring(self.micropython, line.split("#")[0])
+            if args.writefile:
+                log.info(f"{args.writefile=}")
+                self.MCU.cell_to_mcu_file(cell, args.writefile)
+                return
+            if args.readfile:
+                log.info(f"{args.readfile=}")
+                code = self.MCU.cell_from_mcu_file(args.readfile)
+                # if the first line contains a magic command, replace it with this magic command but with the options commented out
+                if code.startswith("# %%"):
+                    code = "\n".join(code.split("\n")[1:])
+                code = f"%%micropython # {line}\n{code}"
+                # if args.new:
+                #     self.shell.set_next_input(code, replace=False)
+                # else:
+                self.shell.set_next_input(code, replace=True)
+
+                return
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_codeblock(cell)
+        output = self.MCU.run_cell(cell)
         return PrettyOutput(output)
 
     @line_magic("micropython")
     @line_magic("mpy")
+    # @magic_arguments()
+    # @argument("-e", "--eval", type=str)
+    # @argument("--reset", type=str)
+    # @argument("--select", type=str)
+    # @argument("--hard-reset", type=str)
+    # @argument("-r","--run", type=str, help='MCU [path/]filename to run',metavar="FILE")
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -223,6 +279,9 @@ class MpyMagics(Magics):
 
         - can be silenced with a trailing semicolon when used as a line magic
         """
+        # if line:
+        #     args = parse_argstring(self.mpy_line, line)
+        #     log.info(f"{args=}")
         # Assemble the command to run
         cmd = f'exec "{line}"'
         # print(exec_cmd)
@@ -282,40 +341,3 @@ class MpyMagics(Magics):
         output = self.MCU.run_cmd("reset")
         self.output = output
         return just_text(output)
-
-    @line_magic("mpremote")
-    def mpremote(self, line: str):
-        """Run a mpremote command with the commandline options"""
-        cmd = f'mpremote "{line}"'
-        output = self.MCU.run_cmd(cmd, auto_connect=False)
-        self.output = output
-        return output
-
-    @line_magic("jv")
-    def jv(self, line: str):
-        """just something to test"""
-        # log.warning("some warning")
-        x = {"a": 1, "b": 2, "c": [1, 2, 3]}
-        return Pretty(x)
-        # output = ["['lib', 'temp.py', 'System Volume Information']", "OSError('boo')", "esp32"]
-        # return Pretty("\n".join(output))
-
-        # if isinstance(output, list):
-        #     # ths is a multiline output from mpremote
-        #     output_ = []
-        #     for line in output:
-        #         try:
-        #             line_ = eval(line)
-        #             output_.append(line_)
-        #         except Exception as e:
-        #             output_.append(line)
-        #     # display(Pretty("\n".join(output)))
-        #     return Pretty("\n".join(output))
-        #     return
-        # return x
-
-    @line_magic("setvar")
-    def setvars(self, line: str):
-        """just something to test"""
-        self.shell.user_ns["newvar"] = "just a brand new variable"
-        # log.warning("some warning")
