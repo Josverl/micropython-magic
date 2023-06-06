@@ -29,6 +29,9 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "editor.formatOnSave": true,
-    "python.formatting.provider": "black",
-    "jupyter.showVariableViewWhenDebugging": true
+    "python.formatting.provider": "none",
+    "jupyter.showVariableViewWhenDebugging": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    }
 }

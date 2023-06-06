@@ -4,7 +4,7 @@ import re
 
 import pytest
 from testbook import testbook
-
+from testbook.client import TestbookNotebookClient
 # avoid RuntimeWarning: Proactor event loop does not implement add_reader
 if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -63,3 +63,7 @@ def test_mpy_cell2(tb):
     assert "test mpy cell magic" in tb.cell_output_text(cellnum)
     cellnum = 12
     assert "test micropython cell magic" in tb.cell_output_text(cellnum)
+
+def test_notebook_ran_ok(tb: TestbookNotebookClient):
+    # if any of the cells raised an assertion error, this will fail the test
+    assert tb.code_cells_executed > 0  # at least one cell executed

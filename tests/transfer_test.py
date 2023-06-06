@@ -20,7 +20,7 @@ def tb():
         yield tb
 
 
-# testbook.client.TestbookNotebookClient
+
 def test_notebook_ran_ok(tb: TestbookNotebookClient):
     # if any of the cells raised an assertion error, this will fail the test
     assert tb.code_cells_executed > 0  # at least one cell executed
