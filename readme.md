@@ -5,7 +5,7 @@ The magics make use of the [mpremote tool](https://github.com/micropython/microp
 
 
 It allows 
- * Mntermixing of Host and MCU Code
+ * Mixing of Host and MCU Code ( and languages if you wish)
  * Creating graphs of the data captured by MCU sensors 
  * create re-uasable sequences ( download/compile firmware - flash firmware - uploade code - run expiriment - same outcome) 
  * create and execute tests that require orchestration across multiple MCUs and hosts 
