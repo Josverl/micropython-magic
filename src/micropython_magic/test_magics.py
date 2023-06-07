@@ -21,7 +21,7 @@ from IPython.utils.text import LSString, SList
 from loguru import logger as log
 from mpremote import pyboard, pyboardextended
 
-from micropython_magic.octarine import PrettyOutput, MpyMagics
+from micropython_magic.octarine import MpyMagics, PrettyOutput
 
 
 @magics_class
@@ -33,7 +33,7 @@ class TestMagics(MpyMagics):
         """
         print(f"Magically cool ! {cell=}")
 
-    @line_magic("mpremote")
+    @line_magic("mpremote2")
     def mpremote(self, line: str):
         """Run a mpremote command with the commandline options"""
         cmd = f'mpremote "{line}"'
