@@ -70,7 +70,7 @@ Tested in VSCode with
 ## Advanced 
 List the connected devices 
 ```python
-%list_devices
+%mpy --list
 ```
 
 ## Automatically load the magic on startup
@@ -89,13 +89,7 @@ In order to automatically load the magic on startup, you can add the following t
     ]
     ```
 
-# Pylance for Jupyter Notebooks
-
-https://github.com/microsoft/vscode-jupyter/wiki/Intellisense-for-notebooks
-
-
-
-
+# initial 
 
  - [x] run a code cell on a MCU 
  - [ ] mpremote primitives
@@ -106,14 +100,15 @@ https://github.com/microsoft/vscode-jupyter/wiki/Intellisense-for-notebooks
    - [/] hard-reset a MCU
        - only works on non-rp2040 devices 
        - report / fix hardware reset  issue on rp2040 `machine.reset()` ?
+   - all mpremote commands are possible using `!mpremote`
    - [ ] mip install 
    - [ ] direct - copy file / files to / from 
    - [ ] mount folder 
    - [ ] ls and other file operations 
    - [ ] recursive delete wipe files from MCU - as a built-in magic ? / wait for / create PR for mpremote update ?
    - [ ] cellmagic to copy cell content to specific files on the MCS 
-       - [ ] %%copy_to_mcu main.py
-       - [ ] %%copy_to_mcu boot.py
+       - [ ] %%micropython --writefile main.py
+       - [ ] %%micropython --readfile boot.py
 - [ ] Notebook essentials
    - [x] load magics from `%pip install micropython-magic`
    - [x] get the output from the MCU into a python variable `local = %eval remote`
