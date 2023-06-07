@@ -13,6 +13,21 @@ It allows
  * Capturing the results and outputs in a consistent way
  * Mixing documentation with code  
 
+
+## Samples 
+
+<table>
+<tr>
+<td>
+<img src="docs/cpu_plot.gif" width="400" />
+</td>
+<td>
+<img src="docs/memory_map.gif" width="400" />
+</td>
+</tr>
+</table>
+
+For the source please refer to the samples folder
 ## Installation
 - create and activate a venv `python3 -m venv .venv`
  - [ ] `pip install -U "git+https://github.com/josverl/micropython-magic"`
