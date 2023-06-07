@@ -20,7 +20,7 @@ exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-mpremote = { git = "https://github.com/Josverl/mpremote.git", rev = "main", subdirectory = "tools/mpremote" }
+mpremote = "1.20.0"
 
 [tool.poetry.extras]
 widgets = ["bqplot", "numpy"]

@@ -1057,24 +1057,19 @@ files = [
 
 [[package]]
 name = "mpremote"
-version = "0.4.0.post15+g2cc0536"
+version = "1.20.0"
 description = "Tool for interacting remotely with MicroPython devices"
 category = "main"
 optional = false
 python-versions = ">=3.4"
-files = []
-develop = false
+files = [
+    {file = "mpremote-1.20.0-py3-none-any.whl", hash = "sha256:24de67b56b11134e29c53bb8467459b9c34745e9f490bef5a08dbe524899c62f"},
+    {file = "mpremote-1.20.0.tar.gz", hash = "sha256:5c342762a04791309dd49bce63c70a075aa7c548b1c0076262b96f9ccc398ca2"},
+]
 
 [package.dependencies]
 importlib-metadata = ">=1.4"
 pyserial = ">=3.3"
-
-[package.source]
-type = "git"
-url = "https://github.com/Josverl/mpremote.git"
-reference = "main"
-resolved_reference = "2cc05362f91e0e31000f68a6b9abdf360258f38d"
-subdirectory = "tools/mpremote"
 
 [[package]]
 name = "mypy-extensions"
@@ -2325,4 +2320,4 @@ widgets = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "35c15d265308c8749560f72983b763fc192506742ba53c5e3618e368d4b4923f"
+content-hash = "4a7e5d77f7c319553dc2d3b808ed0402d0367421b1e55d81b2b0effbdc85374d"
