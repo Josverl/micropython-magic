@@ -110,7 +110,7 @@ class MpyMagics(Magics):
     @argument_group("Code execution")
     @argument("--writefile", "--save", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
     @argument("--readfile", "--load", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
-    # @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
+    @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
     # #
     @argument_group("Devices")
     @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
