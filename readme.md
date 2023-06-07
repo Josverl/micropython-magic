@@ -1,21 +1,37 @@
 # micropython-magic
 
-This is a collection of magic methods for micropython for use with Jupyter (formerly IPython Notebook)
+These magic methods allow MicroPython to be used from within any Jupyter Notebook or JupyterLab (formerly IPython Notebook)
+The magics make use of the [mpremote tool](https://github.com/micropython/micropython/blob/master/tools/mpremote/README.md) to enable communication with the MCUs 
 
-**This is a work in progress.**
 
-Ref:
- - https://code.visualstudio.com/docs/datascience/jupyter-notebooks
-
+It allows 
+ * Mntermixing of Host and MCU Code
+ * Creating graphs of the data captured by MCU sensors 
+ * create re-uasable sequences ( download/compile firmware - flash firmware - uploade code - run expiriment - same outcome) 
+ * create and execute tests that require orchestration across multiple MCUs and hosts 
+ * Rapid Prototyping 
+ * Capturing the results and outputs in a consistent way
+ * Mixing documentation with code  
 
 ## Installation
 - create and activate a venv `python3 -m venv .venv`
--  `pip install -U "git+https://github.com/josverl/micropython-magic"`
+ - [ ] `pip install -U "git+https://github.com/josverl/micropython-magic"`
 
+- or install directly into your notbook environment/kernel using the '%pip' magic by running
+  - [ ] `%pip install -U "git+https://github.com/josverl/micropython-magic"`
+
+Recommended : install stubs for your MCU of choice
+- [ ] Install stubs for MicroPython syntax checking `pip install micropython-rp2-stubs`
 
 ## Usage
 
 **1) Create a notebook**
+- install your desired notebook environment:
+  - [VScode and the **Juypyter extension**](https://code.visualstudio.com/docs/languages/python#_jupyter-notebooks) ,
+  - [Jupyter Notebook](https://jupyter.org/install#jupyter-notebook) 
+  - [JupyterLab ](https://jupyter.org/install)
+
+- create a new notebook 
 
 **2) Load the magic**
 ```python
@@ -24,11 +40,9 @@ Ref:
 This can also be configured once to always load automatically ( see below)
 
 
-
-
 **3) add a cell with some code to run on the MCU**
 ```python
-%%micropython  
+# %%micropython  
 from machine import Pin
 led = Pin(25, Pin.OUT)
 led.value(1)
@@ -80,8 +94,7 @@ In order to automatically load the magic on startup, you can add the following t
 https://github.com/microsoft/vscode-jupyter/wiki/Intellisense-for-notebooks
 
 
-Recommended : install stubs 
-- [x] install stubs for MicroPython syntax checking `pip install micropython-esp32-stubs`
+
 
 
  - [x] run a code cell on a MCU 
