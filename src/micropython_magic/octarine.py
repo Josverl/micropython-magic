@@ -4,6 +4,7 @@ Run micropython code from a a notebook
  - uses resume to avoid soft-resetting the MCU
 """
 
+import argparse
 import re
 import sys
 from typing import List, Optional
@@ -99,29 +100,6 @@ class MpyMagics(Magics):
         # to allow expansion to multiple MCUs in the future
         return self._MCUs[0]
 
-    def list_devices(self) -> list:
-        """
-        Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
-        """
-        cmd = "mpremote connect list"
-        # output = self.shell.getoutput(cmd)
-        output = self.MCU.run_cmd(cmd, auto_connect=False)
-        if isinstance(output, SList):
-            return output.list
-        elif isinstance(output, list):
-            return output
-        else:
-            return [output]
-        # TODO: handle other output types #
-
-    def select(self, line: Optional[str]):
-        """
-        Select the device to connect to by specifying the serial port name.
-        """
-        device = line.strip() if line else "auto"
-        output = self.MCU.select_device(device)
-        return just_text(output)
-
     # -------------------------------------------------------------------------
     # cell magics
     # -------------------------------------------------------------------------
@@ -130,15 +108,15 @@ class MpyMagics(Magics):
     @cell_magic("mpy")
     @magic_arguments("%micropython")  # add additional % to display two %% in help
     @argument_group("Code execution")
-    @argument("--writefile", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
-    @argument("--readfile", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
-    @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
+    @argument("--writefile", "--save", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
+    @argument("--readfile", "--load", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
+    # @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
     # #
     @argument_group("Devices")
     @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
     @argument("--reset", "--soft-reset", action="store_true", help="Reset device (before running cell).")
     @argument("--hard-reset", action="store_true", help="reset device.")
-    def micropython(self, line: str, cell: Optional[str] = None):
+    def micropython(self, line: str, cell: str = ""):
         """
         Run Micropython code on an attached device using mpremote.
         """
@@ -195,11 +173,14 @@ class MpyMagics(Magics):
     @magic_arguments("mpy")
     @argument_group("Code execution")
     @argument("statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)")
-    @argument("--eval", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
+    @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
+    # @argument("--run", nargs=1, help="file to run on the MCU", metavar="PATH/FILE.PY")
+    # --follow / --no-follow switch
+    # @argument("--follow",  action=argparse.BooleanOptionalAction, help="follow the output of the MCU")
     #
     @argument_group("Devices")
-    @argument("--list", action="store_true", help="List available devices.")
-    @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
+    @argument("--list", "--devs", "-l", action="store_true", help="List available devices.")
+    @argument("--select", "-s", nargs="+", help="serial port to connect to", metavar="PORT")
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
     @output_can_be_silenced
@@ -248,6 +229,33 @@ class MpyMagics(Magics):
             output = self.MCU.run_cmd(cmd)
             return PrettyOutput(output)
 
+    # -------------------------------------------------------------------------
+    # worker mothods - these are called by the magics
+    # -------------------------------------------------------------------------
+
+    def list_devices(self) -> list:
+        """
+        Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
+        """
+        cmd = "mpremote connect list"
+        # output = self.shell.getoutput(cmd)
+        output = self.MCU.run_cmd(cmd, auto_connect=False)
+        if isinstance(output, SList):
+            return output.list
+        elif isinstance(output, list):
+            return output
+        else:
+            return [output]
+        # TODO: handle other output types #
+
+    def select(self, line: Optional[str]):
+        """
+        Select the device to connect to by specifying the serial port name.
+        """
+        device = line.strip() if line else "auto"
+        output = self.MCU.select_device(device)
+        return just_text(output)
+
     def eval(self, line: str):
         """
         Run a Micropython expression on an attached device using mpremote.
@@ -279,8 +287,6 @@ class MpyMagics(Magics):
     def soft_reset(self):
         """
         Perform a soft-reset on the current Micropython device.
-
-        - can be silenced with a trailing semicolon when used as a line magic
         """
         # Append an eval statement to avoid ending up in the repl
         output = self.MCU.run_cmd("soft-reset eval True")
@@ -290,8 +296,6 @@ class MpyMagics(Magics):
     def hard_reset(self):
         """
         Perform a hard-reset on the current Micropython device.
-
-        - can be silenced with a trailing semicolon when used as a line magic
         """
         output = self.MCU.run_cmd("reset")
         self.output = output
