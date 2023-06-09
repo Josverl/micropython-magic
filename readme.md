@@ -17,12 +17,27 @@ It allows
 ## Samples 
 
 <table>
+
 <tr>
 <td>
-<img src="docs/cpu_plot.gif" width="400" />
+Plot cpu temperature  
+
+<img src="docs/cpu_plot.gif" width="300" />
 </td>
 <td>
-<img src="docs/memory_map.gif" width="400" />
+Visualize the memory map of the MCU
+
+<img src="docs/memory_map.gif" width="300" />
+</td>
+</tr>
+
+<tr>
+<td>
+</td>
+<td>
+Memory allocation of the MCU over time
+
+<img src="docs/memory_map_sequence.gif" width="300" />
 </td>
 </tr>
 </table>
@@ -30,13 +45,13 @@ It allows
 For the source please refer to the samples folder
 ## Installation
 - create and activate a venv `python3 -m venv .venv`
- - [ ] `pip install -U "git+https://github.com/josverl/micropython-magic"`
+ - [ ] `pip install -U "micropython-magic"`
 
 - or install directly into your notbook environment/kernel using the '%pip' magic by running
-  - [ ] `%pip install -U "git+https://github.com/josverl/micropython-magic"`
+  - [ ] `%pip install -U "micropython-magic"`
 
 Recommended : install stubs for your MCU of choice
-- [ ] Install stubs for MicroPython syntax checking `pip install micropython-rp2-stubs`
+- [ ] Install stubs for MicroPython syntax checking `pip install micropython-rp2-stubs` (or your port of choise)
 
 ## Usage
 
