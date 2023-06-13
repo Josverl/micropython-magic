@@ -33,5 +33,12 @@
     "jupyter.showVariableViewWhenDebugging": true,
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "notebook.output.textLineLimit": 50,
+    "notebook.find.scope": {
+        "markupSource": true,
+        "markupPreview": false,
+        "codeSource": true,
+        "codeOutput": false
     }
 }
