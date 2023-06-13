@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import copy
 import re
+import time
 from dataclasses import InitVar, dataclass, field
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from colorama import Back, Fore, Style
+from IPython.display import display, update_display
 from IPython.lib.pretty import CallExpression, PrettyPrinter, pprint, pretty
 
 re_head_1 = re.compile(r"GC: total: (\d+), used: (\d+), free: (\d+)")
@@ -15,9 +19,28 @@ re_free = re.compile(r"\((.*) lines all free\)")
 COL_WIDTH = 64
 
 
+def info_str(mem_info) -> str:
+    """convert the output of a %mpy command to a string that can be processed
+    Accepts:
+        - from SList
+        - from list[str]
+        - from str
+        = PrettyPrint
+    """
+    if "data" in dir(mem_info):
+        mem_info = mem_info.data
+
+    if issubclass(type(mem_info), list):
+        s = "\n".join(mem_info)
+    elif issubclass(type(mem_info), str):
+        s = str(mem_info)
+
+    return s
+
+
 @dataclass
-class Info:
-    mmap: str = ""
+class MemoryInfo:
+    mmap: InitVar[Any] = ""
     name: str = ""
     datetime = None
     """Memory map"""
@@ -42,16 +65,28 @@ class Info:
     stack_total: int = 0
     """Stack total"""
     color = Fore.WHITE
-    parent: "MemoryInfo" = None
+    parent: MemoryInfoList = None
+    show_free: bool = False
 
-    def __post_init__(self):
-        if self.mmap:
-            self.parse(self.mmap)
+    def __post_init__(self, mmap: Any):
+        if mmap:
+            # self.mmap = info_str(mmap)
+            self.parse(info_str(mmap))
+
+    @property
+    def columns(self):
+        return self.parent.columns if self.parent else 4
+
+    @property
+    def diff_with(self):
+        return self.parent.diff_with if self.parent else None
 
     def _header(self):
         head = f"{Fore.WHITE}{Back.BLACK}"
-        if self.parent.diff_with:
-            head += f"{self.parent.memory_maps[self.parent.diff_with[0]].name} --> {self.name}\n"
+        if self.diff_with:
+            head += f"{self.parent.data[self.diff_with[0]].name} --> {self.name}\n"
+        elif self.name:
+            head += f"{self.name}\n"
         head += (
             f"Stack used:  0x{self.stack_used:04_x} of Total: 0x{self.stack_total:04x}  pct free: {(self.stack_total - self.stack_used)/self.stack_total if self.stack_total else 0:4.1%}\n"
             f"Memory used: 0x{self.used:08_x} of Total: 0x{self.total:08_x}  free: 0x{self.free:08_x} pct free: {(self.free/self.total)if self.total else 0:4.1%}\n"
@@ -65,7 +100,7 @@ class Info:
         if cycle:
             pp.text("MemoryInfo(...)")
             return
-        width = COL_WIDTH * self.parent.columns
+        width = COL_WIDTH * self.columns
         text = self._header()
         color = Fore.WHITE
 
@@ -83,16 +118,16 @@ class Info:
         # now pretty print the memory map
         pp.text(text)
 
-    def _repr_pretty_diff_(self, pp: PrettyPrinter, cycle, other: "Info"):
+    def _repr_pretty_diff_(self, pp: PrettyPrinter, cycle, other: "MemoryInfo"):
         """print a colored version of a differential memory map
         the  maps list should contain the 2 memory maps to compare,
         indexes are in self.diff_with(A,B)
         """
         if cycle:
-            pp.text("Info(...)")
-        width = COL_WIDTH * self.parent.columns
+            pp.text("MemoryInfo(...)")
+        width = COL_WIDTH * self.columns
         if not other:
-            pp.text("Info(...)")
+            pp.text("MemoryInfo(...)")
             return
         pp.text(self._header())
         text = ""
@@ -178,9 +213,11 @@ class Info:
             bg = Back.CYAN
         return fg + bg
 
-    def parse(self, mem_info: Union[str, List[str]], name: Optional[str] = "", show_free=True):
-        """Parse the memory map store it in this Info object"""
+    def parse(self, mem_info: Union[str, List[str]], name: Optional[str] = ""):
+        """Parse the memory map store it in this MemoryInfo object"""
         # sourcery skip: use-named-expression
+        if not isinstance(mem_info, str):
+            mem_info = info_str(mem_info)
 
         match_head_1 = re_head_1.search(mem_info)
         if not match_head_1:
@@ -196,7 +233,7 @@ class Info:
         if match_stack:
             self.stack_used, self.stack_total = [int(x) for x in match_stack.groups()]
         _raw_map = re_block.findall(mem_info)
-        if show_free:
+        if self.show_free:
             match_free = re_free.search(mem_info)
             if match_free:
                 # there can be multiple marks of free lines, so lets try to find them all
@@ -217,118 +254,118 @@ class Info:
         self.mmap = "".join(_raw_map)
         return self
 
-    def __sub__(self, other: "Info"):
+    def __sub__(self, other: MemoryInfo):
         """Subtract the other memory map from this one"""
         if not other:
-            return ValueError("Other Info object is empty")
+            return ValueError("Other MemoryInfo object is empty")
         # new MemoryInfo , with just the diff of these two
-        diff = MemoryInfoList()
-        diff.append(other)
-        diff.append(self)
+        diff = MemoryInfoList([other, self])
         diff.diff_with = (0, -1)
         return diff
 
 
-@dataclass
-class MemoryInfoList:
-    """MicroPython Visual Memory Information Map"""
+# -------------------------------------------------------------------------------------------
+# MemoryInfoList
+# -------------------------------------------------------------------------------------------
 
-    show_free: bool = True
-    rainbow: bool = False
-    diff_with: tuple = ()
-    "Tuple of Info indexes to compare (Other,Current)"
-    columns: int = 4
-    memory_maps: List["Info"] = field(default_factory=list)
-    memory_info: InitVar[Union[str, List[str]] | None] = None
-    _current = -1
 
-    def __post_init__(self, memory_info):
-        self.columns = max(1, self.columns)
-        self._color_num = 0
-        if memory_info:
-            self.append(memory_info, self.name)
+from collections import UserList
 
-    def append(
-        self,
-        mem_info: Union[str, List[str]],
-        name: Optional[str] = "",
-    ):
-        """Append a new memory map"""
-        if issubclass(type(mem_info), list):
-            mem_info = "\n".join(mem_info)
-            info = Info(mem_info, name)
-        elif issubclass(type(mem_info), str):
-            mem_info = str(mem_info)
-            info = Info(mem_info, name)
-        elif issubclass(type(mem_info), Info):
-            info = mem_info
+
+class MemoryInfoList(UserList):
+    def __init__(self, iterable):
+        self.show_free: bool = True  # show the free blocks - default True - currently ignored by code
+        self.rainbow: bool = False  # color the blocks in rainbow colors
+        self.diff_with: tuple = ()  # (other, current)
+        self._current = -1  # focus on the last MI in the list
+
+        "Tuple of Info indexes to compare (Other,Current)"
+        self.columns: int = 4
+        super().__init__(self._validate_mi(item) for item in iterable)
+
+    def __setitem__(self, index, item):
+        self.data[index] = self._validate_mi(item)
+
+    def insert(self, index, item, name: Optional[str] = ""):
+        self.data.insert(index, self._validate_mi(item, name=name))
+
+    def append(self, item, name: Optional[str] = ""):
+        self.data.append(self._validate_mi(item, name=name))
+
+    def extend(self, other):
+        if isinstance(other, type(self)):
+            self.data.extend(other)
         else:
-            raise ValueError("Invalid type for mem_info")
-        info.parent = self
-        self.memory_maps.append(info)
+            self.data.extend(self._validate_mi(item) for item in other)
+
+    def _validate_mi(self, value, name: Optional[str] = ""):
+        # sourcery skip: extract-duplicate-method
+        "Check if this is a memory Info object or can be converted to one"
+        if isinstance(value, MemoryInfo):
+            value.parent = self
+            if name:
+                value.name = name
+            return value
+        if issubclass(type(value), list):
+            value = "\n".join(value)
+            info = MemoryInfo(value, name)
+            info.parent = self
+            return info
+        elif issubclass(type(value), str):
+            info = MemoryInfo(value, name)
+            info.parent = self
+            return info
+        else:
+            raise TypeError(f"MemoryInfo object or string value expected, got {type(value).__name__}")
+
+    def play(self, start=None, end=None, step=1, delay=0.1, did=None):
+        """Play the memory map as a movie, with a diff of n - 1"""
+        self.diff_with = ()
+        if not did:
+            did = display(self, display_id=True)
+        else:
+            update_display(self, display_id=did.display_id)
+        time.sleep(delay)
+        # loop over the memory info objects - or a slice of them
+        for idx, mi in enumerate(self[slice(start, end, step)]):
+            self.diff_with = (idx - step, idx)
+            update_display(self, display_id=did.display_id)
+            time.sleep(delay)
 
     def _repr_pretty_(self, pp, cycle):
+        """print a colored version of a memory map"""
+        # Jupyter Pretty Printer
         self._color_num = 0
-        if len(self.memory_maps):
-            if self.diff_with and len(self.memory_maps) > 1:
+        if len(self.data):
+            if self.diff_with and len(self.data) > 1:
                 return self._repr_pretty_diff_(pp, cycle)
             else:
-                return self.memory_maps[self._current]._repr_pretty_(pp, cycle)
+                return self.data[self._current]._repr_pretty_(pp, cycle)
 
     def _repr_pretty_diff_(self, pp, cycle):
         """print a colored version of a differential memory map
         the  maps list should contain the 2 memory maps to compare,
         indexes are in self.diff_with(A,[B])
+        # Jupyter Pretty Printer for diff comparisons of two maps
         """
         try:
-            other_map = self.memory_maps[self.diff_with[0]]
+            other_map = self.data[self.diff_with[0]]
             if len(self.diff_with) > 1:
-                cur_map = self.memory_maps[self.diff_with[1]]
+                cur_map = self.data[self.diff_with[1]]
             else:
-                cur_map = self.memory_maps[self._current]
+                cur_map = self.data[self._current]
         except IndexError:
-            text = f"{Fore.RED}Not enough memory maps to compare - need 2, got {len(self.memory_maps)}"
+            text = f"{Fore.RED}Not enough memory maps to compare - need 2, got {len(self.data)}"
             pp.text(text)
             return
         return cur_map._repr_pretty_diff_(pp, cycle, other=other_map)
 
-    # promote properties from the last memory map
-    @property
-    def used(self):
-        return self.memory_maps[self._current].used
+    def map(self, action):
+        return type(self)(action(item) for item in self)
 
-    @property
-    def total(self):
-        return self.memory_maps[self._current].total
+    def filter(self, predicate):
+        return type(self)(item for item in self if predicate(item))
 
-    @property
-    def free(self):
-        return self.memory_maps[self._current].free
-
-    @property
-    def total(self):
-        return self.memory_maps[self._current].total
-
-    @property
-    def one_blocks(self):
-        return self.memory_maps[self._current].one_blocks
-
-    @property
-    def two_blocks(self):
-        return self.memory_maps[self._current].two_blocks
-
-    @property
-    def max_block_size(self):
-        return self.memory_maps[self._current].max_block_size
-
-    @property
-    def max_free_size(self):
-        return self.memory_maps[self._current].max_free_size
-
-    @property
-    def stack_used(self):
-        return self.memory_maps[self._current].stack_used
-
-    @property
-    def stack_total(self):
-        return self.memory_maps[self._current].stack_total
+    # def for_each(self, func):
+    #     for item in self:
+    #         func(item)
