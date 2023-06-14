@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import copy
 import re
 import time
 from dataclasses import InitVar, dataclass, field
-from typing import Any, List, Optional, Union
+from typing import Any, Iterable, List, Optional, Union
 
 from colorama import Back, Fore, Style
 from IPython.display import display, update_display
@@ -75,7 +74,7 @@ class MemoryInfo:
 
     @property
     def columns(self):
-        return self.parent.columns if self.parent else 4
+        return self.parent.columns if self.parent else 3  # fixme
 
     @property
     def diff_with(self):
@@ -273,14 +272,14 @@ from collections import UserList
 
 
 class MemoryInfoList(UserList):
-    def __init__(self, iterable):
-        self.show_free: bool = True  # show the free blocks - default True - currently ignored by code
-        self.rainbow: bool = False  # color the blocks in rainbow colors
-        self.diff_with: tuple = ()  # (other, current)
-        self._current = -1  # focus on the last MI in the list
+    def __init__(self, iterable: Iterable = None, *, show_free: bool = False, rainbow: bool = False, columns: int = 4):
+        self.show_free: bool = show_free  # show the free blocks - default True - currently ignored by code
+        self.rainbow: bool = rainbow  # color the blocks in rainbow colors
+        self.columns: int = columns
 
-        "Tuple of Info indexes to compare (Other,Current)"
-        self.columns: int = 4
+        self.diff_with: tuple = ()  # (other, current)
+        if not iterable:
+            iterable = []
         super().__init__(self._validate_mi(item) for item in iterable)
 
     def __setitem__(self, index, item):
@@ -302,11 +301,13 @@ class MemoryInfoList(UserList):
         # sourcery skip: extract-duplicate-method
         "Check if this is a memory Info object or can be converted to one"
         if isinstance(value, MemoryInfo):
+            # no conversion needed
             value.parent = self
             if name:
                 value.name = name
             return value
         if issubclass(type(value), list):
+            # convert list to to a string with newlines
             value = "\n".join(value)
             info = MemoryInfo(value, name)
             info.parent = self
@@ -340,7 +341,7 @@ class MemoryInfoList(UserList):
             if self.diff_with and len(self.data) > 1:
                 return self._repr_pretty_diff_(pp, cycle)
             else:
-                return self.data[self._current]._repr_pretty_(pp, cycle)
+                return self.data[-1]._repr_pretty_(pp, cycle)
 
     def _repr_pretty_diff_(self, pp, cycle):
         """print a colored version of a differential memory map
@@ -366,6 +367,42 @@ class MemoryInfoList(UserList):
     def filter(self, predicate):
         return type(self)(item for item in self if predicate(item))
 
-    # def for_each(self, func):
-    #     for item in self:
-    #         func(item)
+    def for_each(self, func):
+        for item in self:
+            func(item)
+
+    def parse_log(
+        self,
+        log_text: list[str],
+    ) -> MemoryInfoList:
+        """Parse a log file which may contain memoryinfo maps and append these to a MemoryInfoList"""
+
+        # setup terminators
+        RE_MEM_INFO_START = r"\*\*\* Memory info (.*) \*\*\*"
+        MEM_INFO_END = "*********************"
+
+        # init
+        in_mem_info = False
+        nr = 0
+        mem_info_log = []
+        # find the meory_info lines in the (console) log output
+        while nr < len(log_text):
+            # if the regex matches, start a new map
+            if match := re.match(RE_MEM_INFO_START, log_text[nr]):
+                # start a new map
+                mem_info_log = []
+                in_mem_info = True
+                # get the name of the map
+                map_name = match[1]
+            if in_mem_info:
+                if log_text[nr].startswith(MEM_INFO_END):
+                    # At end of the map,
+                    in_mem_info = False
+                    # add it to the MemoryInfoList
+                    if len(mem_info_log) > 0:
+                        self.append(mem_info_log, name=map_name)
+                else:
+                    # add a line to the map
+                    mem_info_log.append(log_text[nr])
+            nr += 1
+        return self
