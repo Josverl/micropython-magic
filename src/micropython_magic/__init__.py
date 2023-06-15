@@ -12,12 +12,11 @@ from .test_magics import TestMagics
 
 
 def load_ipython_extension(ipython: InteractiveShell):
-    # register the input transformer to allow magis in comments
+    # register the input transformer to allow %%cell_magics in comments
     ipython.input_transformers_cleanup.append(comment_magic_transformer)
     # register the magics
-
     ipython.register_magics(MpyMagics)
-    # ipython.register_magics(TestMagics)
+    ipython.register_magics(TestMagics)
 
 
 def unload_ipython_extension(ipython: InteractiveShell):
