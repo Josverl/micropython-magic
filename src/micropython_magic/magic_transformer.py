@@ -3,12 +3,12 @@ Transforms a cell with a commented cell magic into a cell without the comment, b
 
 `# %%micropython --> %%micropython`
 This allows Pylance to only see python code and not the magic, 
-which would otherwise confuse it, and cause it to be disabled.
+which would otherwise confuse it, and cause it to be     disabled.
 """
 import re
 
-re_comment_magic = r"#\s?(!)?\s?(%%(micropython|python|mypy|script))"  # matches `# %%micropython` or `#!%%micropython` with optional spaces in between
-subst = "\\g<1>"
+re_comment_magic = r"#[ |\t|!]*%%((micropython|python|mypy|script))"  # matches `# %%micropython` or `#!%%micropython` with optional spaces in between
+subst = r"%%\g<1>"
 
 
 def comment_magic_transformer(lines: list[str]):
