@@ -65,7 +65,6 @@ class MemoryInfo:
     """Stack total"""
     color = Fore.WHITE
     parent: MemoryInfoList = None
-    show_free: bool = False
 
     def __post_init__(self, mmap: Any):
         if mmap:
@@ -79,6 +78,10 @@ class MemoryInfo:
     @property
     def diff_with(self):
         return self.parent.diff_with if self.parent else None
+
+    @property
+    def show_free(self):
+        return self.parent.show_free if self.parent else True
 
     def _header(self):
         head = f"{Fore.WHITE}{Back.BLACK}"
@@ -272,8 +275,8 @@ from collections import UserList
 
 
 class MemoryInfoList(UserList):
-    def __init__(self, iterable: Iterable = None, *, show_free: bool = False, rainbow: bool = False, columns: int = 4):
-        self.show_free: bool = show_free  # show the free blocks - default True - currently ignored by code
+    def __init__(self, iterable: Iterable = None, *, show_free: bool = True, rainbow: bool = False, columns: int = 4):
+        self.show_free: bool = show_free  # show the free blocks - default True
         self.rainbow: bool = rainbow  # color the blocks in rainbow colors
         self.columns: int = columns
 
