@@ -40,6 +40,7 @@ def info_str(mem_info) -> str:
 @dataclass
 class MemoryInfo:
     mmap: InitVar[Any] = ""
+    cols: InitVar[Optional[int]] = None  # type: ignore
     name: str = ""
     datetime = None
     """Memory map"""
@@ -64,16 +65,24 @@ class MemoryInfo:
     stack_total: int = 0
     """Stack total"""
     color = Fore.WHITE
-    parent: MemoryInfoList = None
+    parent: Optional[MemoryInfoList] = None
+    _columns: int = 4
+    _show_free = False
 
-    def __post_init__(self, mmap: Any):
+    def __post_init__(self, mmap: Any, cols):
         if mmap:
             # self.mmap = info_str(mmap)
             self.parse(info_str(mmap))
+        if cols:
+            self._columns = cols
 
     @property
     def columns(self):
-        return self.parent.columns if self.parent else 3  # fixme
+        return self.parent.columns if self.parent else self._columns
+
+    @columns.setter
+    def columns(self, val: int):
+        self._columns = val
 
     @property
     def diff_with(self):
@@ -81,7 +90,11 @@ class MemoryInfo:
 
     @property
     def show_free(self):
-        return self.parent.show_free if self.parent else True
+        return self.parent.show_free if self.parent else self._show_free
+
+    @show_free.setter
+    def show_free(self, val: bool):
+        self._show_free = val
 
     def _header(self):
         head = f"{Fore.WHITE}{Back.BLACK}"
@@ -99,6 +112,7 @@ class MemoryInfo:
 
     def _repr_pretty_(self, pp, cycle=False):
         "print a colored version of the memory map"
+        self._color_num = 0
         if cycle:
             pp.text("MemoryInfo(...)")
             return
@@ -195,6 +209,7 @@ class MemoryInfo:
         #    A   bytearray
         # ====== =================
         BG_COLORS = [Back.BLUE, Back.RED, Back.MAGENTA, Back.CYAN]
+
         fg = Fore.BLACK
         bg = Back.RED
         if c == ".":
@@ -312,11 +327,13 @@ class MemoryInfoList(UserList):
         if issubclass(type(value), list):
             # convert list to to a string with newlines
             value = "\n".join(value)
-            info = MemoryInfo(value, name)
+            info = MemoryInfo(value)
+            info.name = name
             info.parent = self
             return info
         elif issubclass(type(value), str):
-            info = MemoryInfo(value, name)
+            info = MemoryInfo(value)
+            info.name = name
             info.parent = self
             return info
         else:
