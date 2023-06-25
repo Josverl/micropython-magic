@@ -5,6 +5,7 @@ import time
 from dataclasses import InitVar, dataclass, field
 from typing import Any, Iterable, List, Optional, Union
 
+import numpy as np
 from colorama import Back, Fore, Style
 from IPython.display import display, update_display
 from IPython.lib.pretty import CallExpression, PrettyPrinter, pprint, pretty
@@ -14,6 +15,38 @@ re_head_2 = re.compile(r" No. of 1-blocks: (\d+), 2-blocks: (\d+), max blk sz: (
 re_stack = re.compile(r"stack: (\d+) out of (\d+)")
 re_block = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
 re_free = re.compile(r"\((.*) lines all free\)")
+
+
+#  a numpy datatype to hold the memory info for a series of memory maps
+dt_meminfo = np.dtype(
+    {
+        "names": [
+            # name  of the memory map
+            # datetime of the memory map
+            "total",
+            "used",
+            "free",
+            "max free",
+            "1-blocks",
+            "2-blocks",
+            "max block",
+            "stack",
+            "stack used",
+        ],
+        "formats": [
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+            np.int32,
+        ],
+    }
+)
+
 
 COL_WIDTH = 64
 
@@ -280,6 +313,25 @@ class MemoryInfo:
         diff.diff_with = (0, -1)
         return diff
 
+    def as_np_array(self):
+        """Return the memory object as a numpy array of a single row"""
+        return np.array(
+            [
+                (
+                    self.total,
+                    self.used,
+                    self.free,
+                    self.max_free_size,
+                    self.one_blocks,
+                    self.two_blocks,
+                    self.max_block_size,
+                    self.stack_total,
+                    self.stack_used,
+                )
+            ],
+            dtype=dt_meminfo,
+        )
+
 
 # -------------------------------------------------------------------------------------------
 # MemoryInfoList
@@ -290,6 +342,8 @@ from collections import UserList
 
 
 class MemoryInfoList(UserList):
+    """A list of MemoryInfo objects that is used to store a series of memory map of the device"""
+
     def __init__(self, iterable: Iterable = None, *, show_free: bool = True, rainbow: bool = False, columns: int = 4):
         self.show_free: bool = show_free  # show the free blocks - default True
         self.rainbow: bool = rainbow  # color the blocks in rainbow colors
@@ -303,11 +357,34 @@ class MemoryInfoList(UserList):
     def __setitem__(self, index, item):
         self.data[index] = self._validate_mi(item)
 
+    @property
+    def np_array(self):
+        """Return the memory List as a numpy array to allow simple math operations"""
+        return np.array(
+            [
+                (
+                    i.total,
+                    i.used,
+                    i.free,
+                    i.max_free_size,
+                    i.one_blocks,
+                    i.two_blocks,
+                    i.max_block_size,
+                    i.stack_total,
+                    i.stack_used,
+                )
+                for i in self.data
+            ],
+            dtype=dt_meminfo,
+        )
+
     def insert(self, index, item, name: Optional[str] = ""):
-        self.data.insert(index, self._validate_mi(item, name=name))
+        new = self._validate_mi(item, name=name)
+        self.data.insert(index, new)
 
     def append(self, item, name: Optional[str] = ""):
-        self.data.append(self._validate_mi(item, name=name))
+        new = self._validate_mi(item, name=name)
+        self.data.append(new)
 
     def extend(self, other):
         if isinstance(other, type(self)):
