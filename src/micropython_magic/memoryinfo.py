@@ -1,28 +1,35 @@
 from __future__ import annotations
 
+import datetime
 import re
 import time
-from dataclasses import InitVar, dataclass, field
-from typing import Any, Iterable, List, Optional, Union
+from dataclasses import InitVar, dataclass
+from functools import cached_property
+from typing import Any, Dict, Iterable, List, Optional, Union
 
+import matplotlib.dates as mpl_dates
+import matplotlib.pyplot as plt
 import numpy as np
 from colorama import Back, Fore, Style
 from IPython.display import display, update_display
-from IPython.lib.pretty import CallExpression, PrettyPrinter, pprint, pretty
+from IPython.lib.pretty import PrettyPrinter
+from matplotlib.backend_bases import MouseEvent
+from matplotlib.lines import Line2D
 
-re_head_1 = re.compile(r"GC: total: (\d+), used: (\d+), free: (\d+)")
-re_head_2 = re.compile(r" No. of 1-blocks: (\d+), 2-blocks: (\d+), max blk sz: (\d+), max free sz: (\d+)")
-re_stack = re.compile(r"stack: (\d+) out of (\d+)")
-re_block = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
-re_free = re.compile(r"\((.*) lines all free\)")
+RE_HEAD_1 = re.compile(r"GC: total: (\d+), used: (\d+), free: (\d+)")
+RE_HEAD_2 = re.compile(r"\s?No. of 1-blocks: (\d+), 2-blocks: (\d+), max blk sz: (\d+), max free sz: (\d+)")
+RE_D_TIME = re.compile(r"time:\s?(\([\d|,|\s]+\))")
+RE_STACK = re.compile(r"stack: (\d+) out of (\d+)")
+RE_BLOCK = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
+RE_FREE = re.compile(r"\((.*) lines all free\)")
 
 
 #  a numpy datatype to hold the memory info for a series of memory maps
-dt_meminfo = np.dtype(
+DT_MEMINFO = np.dtype(
     {
         "names": [
-            # name  of the memory map
-            # datetime of the memory map
+            "description",  # U25
+            "datetime",  # M
             "total",
             "used",
             "free",
@@ -33,17 +40,7 @@ dt_meminfo = np.dtype(
             "stack",
             "stack used",
         ],
-        "formats": [
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-            np.int32,
-        ],
+        "formats": ["U25", "datetime64[us]", "i4", "i4", "i4", "i4", "i4", "i4", "i4", "i4", "i4"],
     }
 )
 
@@ -269,33 +266,41 @@ class MemoryInfo:
         if not isinstance(mem_info, str):
             mem_info = info_str(mem_info)
 
-        match_head_1 = re_head_1.search(mem_info)
+        match_head_1 = RE_HEAD_1.search(mem_info)
         if not match_head_1:
             raise ValueError("Not recognized as a valid Micropython memory info")
         self.total, self.used, self.free = [int(x) for x in match_head_1.groups()]
         # find the used blocks
-        match_head_2 = re_head_2.search(mem_info)
+        match_head_2 = RE_HEAD_2.search(mem_info)
         if match_head_2:
             self.one_blocks, self.two_blocks, self.max_block_size, self.max_free_size = [
                 int(x) for x in match_head_2.groups()
             ]
-        match_stack = re_stack.search(mem_info)
+        match_stack = RE_STACK.search(mem_info)
         if match_stack:
             self.stack_used, self.stack_total = [int(x) for x in match_stack.groups()]
-        _raw_map = re_block.findall(mem_info)
+        match_dt = RE_D_TIME.search(mem_info)
+        if match_dt:
+            dt = eval(match_dt.groups()[0])
+            self.datetime = datetime.datetime(*dt[:-1])
+        else:
+            # use the local time
+            self.datetime = datetime.datetime.now()
+
+        _raw_map = RE_BLOCK.findall(mem_info)
         if self.show_free:
-            match_free = re_free.search(mem_info)
+            match_free = RE_FREE.search(mem_info)
             if match_free:
                 # there can be multiple marks of free lines, so lets try to find them all
                 # break the map into lines and find the free lines
                 lines = mem_info.split("\n")
                 l1 = 0
                 for line in lines:
-                    match_map = re_block.match(line)
+                    match_map = RE_BLOCK.match(line)
                     if match_map:
                         l1 += 1
                         continue
-                    match_free = re_free.search(line)
+                    match_free = RE_FREE.search(line)
                     if match_free:
                         lines_free = int(match_free.groups(0)[0])
                         # insert the free lines in one go
@@ -318,6 +323,8 @@ class MemoryInfo:
         return np.array(
             [
                 (
+                    self.name[:25],
+                    self.datetime,
                     self.total,
                     self.used,
                     self.free,
@@ -329,7 +336,7 @@ class MemoryInfo:
                     self.stack_used,
                 )
             ],
-            dtype=dt_meminfo,
+            dtype=DT_MEMINFO,
         )
 
 
@@ -344,7 +351,9 @@ from collections import UserList
 class MemoryInfoList(UserList):
     """A list of MemoryInfo objects that is used to store a series of memory map of the device"""
 
-    def __init__(self, iterable: Iterable = None, *, show_free: bool = True, rainbow: bool = False, columns: int = 4):
+    def __init__(
+        self, iterable: Optional[Iterable] = None, *, show_free: bool = True, rainbow: bool = False, columns: int = 4
+    ):
         self.show_free: bool = show_free  # show the free blocks - default True
         self.rainbow: bool = rainbow  # color the blocks in rainbow colors
         self.columns: int = columns
@@ -357,12 +366,14 @@ class MemoryInfoList(UserList):
     def __setitem__(self, index, item):
         self.data[index] = self._validate_mi(item)
 
-    @property
+    @cached_property
     def np_array(self):
         """Return the memory List as a numpy array to allow simple math operations"""
         return np.array(
             [
                 (
+                    i.name[:25],
+                    i.datetime,
                     i.total,
                     i.used,
                     i.free,
@@ -375,7 +386,7 @@ class MemoryInfoList(UserList):
                 )
                 for i in self.data
             ],
-            dtype=dt_meminfo,
+            dtype=DT_MEMINFO,
         )
 
     def insert(self, index, item, name: Optional[str] = ""):
@@ -503,3 +514,166 @@ class MemoryInfoList(UserList):
                     mem_info_log.append(log_text[nr])
             nr += 1
         return self
+
+    def plot(
+        self,
+        title: str = "Memory Info",
+        # used: bool = True,
+        free: bool = False,
+        stack_total: bool = False,
+        one_blocks: bool = False,
+        two_blocks: bool = False,
+        max_block_size: bool = False,
+        max_free_size: bool = False,
+        stack_used: bool = False,
+        time_axis: bool = True,
+        add_legend: bool = True,
+        size=(12, 4),  # Figure dimension (width, height) in inches.
+    ):  # sourcery skip: last-if-guard
+        # only import if needed
+        import warnings
+
+        KB_DIVIDER = 1024
+        LEGEND_L_BOX = (0.0, 0.0, 0.05, 1)
+        LEGEND_R_BOX = (0.7, 0.0, 0.3, 1)
+
+        fig, ax1 = plt.subplots(figsize=size)  # , layout="constrained")
+        fig.set_label(title)
+
+        # prep the x-axis
+        DT_FORMAT = "%H:%M:%S.%f"
+        if time_axis:
+            ax1.set_xlabel("Time -->")
+            x = self.np_array["datetime"]
+            xfmt = mpl_dates.DateFormatter(DT_FORMAT)
+            ax1.xaxis.set_major_formatter(xfmt)
+
+        else:
+            ax1.set_xlabel("snapshots -->")
+            x = np.arange(len(self))
+            # Set x-axis ticks to the mi_list name
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                # ignore the warning
+                # 'UserWarning: FixedFormatter should only be used together with FixedLocator'
+                ax1.set_xticklabels(self.np_array["description"])
+            # Show 20 ticks at most
+            ax1.locator_params(axis="x", nbins=20)
+        # use the memory info list to get the data
+        a_free = self.np_array["free"]
+        a_used = self.np_array["used"]
+        self.np_array["stack"] = self.np_array["stack"]
+        ##################################################################################
+        # configure both axes
+        ##################################################################################
+        ax1.yaxis.set_major_formatter(lambda x, pos: f"{x/KB_DIVIDER:_.0f} Kb")  # integers in thousands notation
+        ax1.set_ylabel("Memory (Kb)")
+        ax1.set_xmargin(0)
+        ax1.set_ymargin(0)
+        ##################################################################################
+        # Create twin Axes that shares the x-axis
+        ax2 = ax1.twinx()
+        ax2.yaxis.set_major_formatter("{x:_.0f}")
+        ax2.set_ymargin(0)
+        # Add grid for all axes with different styles
+        ax1.grid(True, linestyle="dotted", color="olive")
+        ax2.grid(True, axis="y", linestyle=":", color="fuchsia")
+        ##################################################################################
+        # show minor ticks
+        ax1.minorticks_on()
+        ax2.minorticks_on()
+        ##################################################################################
+        # adjust display of the x-axis labels
+        for label in ax1.get_xticklabels():
+            label.set_horizontalalignment("left")
+            label.set_rotation(-10)
+            label.set_fontsize("x-small")
+            label.set_fontweight("light")
+            # move the labels a bit up
+            label.set_y(label.get_position()[1] + 0.01)
+        # make more room for the labels below  the figure
+        fig.subplots_adjust(bottom=0.1)
+
+        ##################################################################################
+        # Add stackplot of free, used and stack memory if requested
+        labels = ["heap used"]
+        colors = ["orange"]
+        data = [a_used]
+        if free:
+            labels.append("heap free")
+            colors.append("green")
+            data.append(a_free)
+        if stack_total:
+            labels.append("stack total")
+            colors.append("purple")
+            data.append(self.np_array["stack"])
+
+        s_plot = ax1.stackplot(x, data, labels=labels, colors=colors, alpha=0.5)
+
+        my_lines: List[Line2D] = []
+        # Add line charts to 2nd axis
+        if one_blocks:
+            my_lines += ax2.plot(x, self.np_array["1-blocks"], label="1-Blocks", marker=".", linestyle="-.")
+        if two_blocks:
+            my_lines += ax2.plot(x, self.np_array["2-blocks"], label="2-Blocks", marker=".", linestyle="--")
+        if max_block_size:
+            my_lines += ax2.plot(x, self.np_array["max block"], label="Max Block Size", marker=".", linestyle="--")
+        if max_free_size:
+            my_lines += ax2.plot(x, self.np_array["max free"], label="Max Free Size", marker=".", linestyle="--")
+        if stack_used:
+            my_lines += ax2.plot(x, self.np_array["stack used"], label="Stack Used", marker=".", linestyle="--")
+
+        if add_legend:
+            # Add legend and show plot, best location left-ish top
+            ax1.legend(loc="best", reverse=True, bbox_to_anchor=LEGEND_L_BOX, fontsize="small")
+            #  bbox (x, y, width, height) - best location right-ish top
+            ax2.legend(loc="best", bbox_to_anchor=LEGEND_R_BOX, fontsize="small")
+        plt.tick_params(bottom="on")
+
+        # create the annotations box, and hide it for now
+        annot = ax2.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(-20, 20),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round", fc="w"),
+            arrowprops=dict(arrowstyle="->"),
+        )
+        annot.set_visible(False)
+
+        def update_annot(line: Line2D, ind: Dict):
+            """Update the annotation box with the data from the selected line."""
+            x, y = line.get_data()
+            # get the list index of the selected data point
+            indx = ind["ind"][0]
+            annot.xy = (x[indx], y[indx])
+            ## get the text from the line object
+            text = (
+                f"@{self[indx].name}\n"
+                f"time:{self[indx].datetime}\n"
+                f"{line.get_label()} = {y[indx]:_.0f}\n"
+                f"Memory used: {self[indx].used:_.0f} b, free {self[indx].free:_.0f} b"
+            )
+            # text = f"{line.get_label()} = {y[indx]:_.0f}\n@{mi_list.np_array[indx]['description']}\nMemory used: {mi_list.np_array[indx]['used']:_.0f} b, free {mi_list.np_array[indx]['free']:_.0f} b"
+            annot.set_text(text)
+            annot.get_bbox_patch().set_alpha(0.4)  # set the transparency of the box # type: ignore
+
+        def hover(event: MouseEvent):
+            """On mouse-hovewr over a line, display the corresponding data point value"""
+            if event.inaxes in [ax1, ax2]:
+                _visible = annot.get_visible()
+                _contains = False
+                for line in my_lines:
+                    _contains, ind = line.contains(event)
+                    if _contains:
+                        update_annot(line, ind)
+                        annot.set_visible(True)
+                        fig.canvas.draw_idle()
+                        break
+                if not _contains and _visible:
+                    annot.set_visible(False)
+                    fig.canvas.draw_idle()
+
+        # connect the hover-function to the mouse
+        fig.canvas.mpl_connect("motion_notify_event", hover)
+        return fig
