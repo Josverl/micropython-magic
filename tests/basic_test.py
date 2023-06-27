@@ -47,21 +47,21 @@ def test_list_devices_2(tb):
 
 
 def test_eval(tb):
-    cellnum = 8
+    cellnum = 7
     assert tb.cell_output_text(cellnum) == "14"
 
 
 def test_mpy_line(tb):
-    cellnum = 9
+    cellnum = 8
     assert "test mpy line magic" in tb.cell_output_text(cellnum)
-    cellnum = 10
+    cellnum = 9
     assert "test micropython line magic" in tb.cell_output_text(cellnum)
 
 
 def test_mpy_cell2(tb):
-    cellnum = 11
+    cellnum = 10
     assert "test mpy cell magic" in tb.cell_output_text(cellnum)
-    cellnum = 12
+    cellnum = 11
     assert "test micropython cell magic" in tb.cell_output_text(cellnum)
 
 def test_notebook_ran_ok(tb: TestbookNotebookClient):
