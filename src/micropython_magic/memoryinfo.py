@@ -604,7 +604,7 @@ class MemoryInfoList(UserList):
             label.set_horizontalalignment("left")
             label.set_rotation(-10)
             label.set_fontsize("x-small")
-            label.set_fontweight("ligsht")
+            label.set_fontweight("light")
             label.set_y(label.get_position()[1] + 0.01)
         # make more room for the labels below  the figure
         fig.subplots_adjust(bottom=0.1)
