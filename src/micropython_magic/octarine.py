@@ -26,6 +26,12 @@ from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 # https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
 
 
+class MCUException(Exception):
+    """Exception raised for errors on the MCU."""
+
+    pass
+
+
 def set_log_level(llevel: str):
     # format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
     # format_str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
@@ -162,7 +168,7 @@ class MpyMagics(Magics):
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
         output = self.MCU.run_cell(cell)
-        return PrettyOutput(output)
+        # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------
     # line magics
@@ -226,8 +232,9 @@ class MpyMagics(Magics):
             statement = "\n".join(args.statement)
             cmd = f'exec "{statement}"'
             log.debug(f"{cmd=}")
-            output = self.MCU.run_cmd(cmd)
-            return PrettyOutput(output)
+
+            output = self.MCU.run_cmd(cmd, stream_out=False)
+            return output
 
     # -------------------------------------------------------------------------
     # worker mothods - these are called by the magics
@@ -239,14 +246,8 @@ class MpyMagics(Magics):
         """
         cmd = "mpremote connect list"
         # output = self.shell.getoutput(cmd)
-        output = self.MCU.run_cmd(cmd, auto_connect=False)
-        if isinstance(output, SList):
-            return output.list
-        elif isinstance(output, list):
-            return output
-        else:
-            return [output]
-        # TODO: handle other output types #
+        output = self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
+        return output
 
     def select(self, line: Optional[str]):
         """
@@ -270,13 +271,13 @@ class MpyMagics(Magics):
         statement = line.strip()
         cmd = f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
         # print(cmd)
-        output = self.MCU.run_cmd(cmd)
+        output = self.MCU.run_cmd(cmd, stream_out=False)
         matchers = [r"^.*Error:", r"^.*Exception:"]
 
         for ln in output.l:
             # check for errors and raise them
             if any(re.match(m, ln) for m in matchers):
-                raise RuntimeError(ln) from eval(ln.split(":")[0])
+                raise MCUException(ln) from eval(ln.split(":")[0])
             # check for json output and try to convert it
             if ln.startswith(JSON_START) and ln.endswith(JSON_END):
                 result = self.MCU.load_json_from_MCU(ln)
