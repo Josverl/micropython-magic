@@ -13,16 +13,21 @@ from IPython.core.interactiveshell import InteractiveShell
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
+from .interactive import ipython_run
 
 JSON_START = "<json~"
 JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
 
+from .interactive import TIMEOUT
+
+
 class MPRemote2:
     def __init__(self, shell: InteractiveShell, port: str = "auto", resume: bool = True):
         self.shell: InteractiveShell = shell
         self.port: str = "auto"  # by default connect to the first device
-        self.resume = True  # by default resume the device to maintain state
+        self.resume = resume  # by default resume the device to maintain state
+        self.timeout = TIMEOUT
 
     @property
     def cmd_prefix(self):
@@ -34,16 +39,18 @@ class MPRemote2:
         "Creates mpremote 'connect to string' if port is specified."
         return f"connect {self.port} " if self.port else ""
 
-    def run_cmd(self, cmd: str, auto_connect: bool = True):
+    def run_cmd(self, cmd: str, *, auto_connect: bool = True, stream_out: bool = True, shell=True, timeout=0):
         """run a command on the device and return the output"""
         if auto_connect:
             cmd = f"""{self.cmd_prefix} {cmd}"""
         log.debug(cmd)
-        output = self.shell.getoutput(cmd, split=True)
-        assert isinstance(output, SList)
-        if len(output) > 0 and output[0].strip() == "no device found":
-            raise ConnectionError("no device found")
-        return output
+        return ipython_run(cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout)
+
+        # output = self.shell.getoutput(cmd, split=True)
+        # assert isinstance(output, SList)
+        # if len(output) > 0 and output[0].strip() == "no device found":
+        #     raise ConnectionError("no device found")
+        # return output
 
     def select_device(self, line: Optional[str]):
         """try to select the device to connect to by specifying the serial port name."""
@@ -63,11 +70,12 @@ class MPRemote2:
         # copy the cell to a file on the device
         self.cell_to_mcu_file(cell, "__magic.py")
         # run the transferred cell/file
-        return self.run_mcu_file("__magic.py")
+        result = self.run_mcu_file("__magic.py", stream_out=True)
+        return
 
-    def run_mcu_file(self, filename):
+    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: int = 0):
         exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
-        return self.run_cmd(exec_cmd)
+        return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout)
 
     def cell_to_mcu_file(self, cell, filename):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
@@ -77,7 +85,7 @@ class MPRemote2:
             # copy the file to the device
             copy_cmd = f"cp {f.name} :{filename}"
             # TODO: detect / retry / report errors copying the file
-            _ = self.run_cmd(copy_cmd)
+            _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
             # log.info(_)
             # log.info(f.name, "copied to device")
             Path(f.name).unlink()
@@ -87,7 +95,7 @@ class MPRemote2:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             copy_cmd = f"cp :{filename} {f.name}"
             # TODO: detect / retry / report errors copying the file
-            _ = self.run_cmd(copy_cmd)
+            _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
 
             return Path(f.name).read_text()
 
