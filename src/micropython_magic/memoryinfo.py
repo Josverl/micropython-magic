@@ -13,6 +13,8 @@ import numpy as np
 from colorama import Back, Fore, Style
 from IPython.display import display, update_display
 from IPython.lib.pretty import PrettyPrinter
+from loguru import logger as log
+from matplotlib import ticker
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.lines import Line2D
 
@@ -22,7 +24,11 @@ RE_D_TIME = re.compile(r"time:\s?(\([\d|,|\s]+\))")
 RE_STACK = re.compile(r"stack: (\d+) out of (\d+)")
 RE_BLOCK = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
 RE_FREE = re.compile(r"\((.*) lines all free\)")
+# setup terminators
+RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info (.*) \*\*\*")
+RE_MEM_INFO_END = re.compile(r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*")
 
+RE_ALL = [RE_HEAD_1, RE_HEAD_2, RE_D_TIME, RE_STACK, RE_BLOCK, RE_FREE, RE_MEM_INFO_START, RE_MEM_INFO_END]
 
 #  a numpy datatype to hold the memory info for a series of memory maps
 DT_MEMINFO = np.dtype(
@@ -69,7 +75,7 @@ def info_str(mem_info) -> str:
 
 @dataclass
 class MemoryInfo:
-    mmap: InitVar[Any] = ""
+    mmap: InitVar[str] = ""
     cols: InitVar[Optional[int]] = None  # type: ignore
     name: str = ""
     datetime = None
@@ -99,10 +105,10 @@ class MemoryInfo:
     _columns: int = 4
     _show_free = False
 
-    def __post_init__(self, mmap: Any, cols):
+    def __post_init__(self, mmap: str, cols):
         if mmap:
             # self.mmap = info_str(mmap)
-            self.parse(info_str(mmap))
+            self.parse(mmap)
         if cols:
             self._columns = cols
 
@@ -268,7 +274,8 @@ class MemoryInfo:
 
         match_head_1 = RE_HEAD_1.search(mem_info)
         if not match_head_1:
-            raise ValueError("Not recognized as a valid Micropython memory info")
+            log.warning(f"mem_info record not recognized as a valid - {name}")
+            return self
         self.total, self.used, self.free = [int(x) for x in match_head_1.groups()]
         # find the used blocks
         match_head_2 = RE_HEAD_2.search(mem_info)
@@ -389,11 +396,11 @@ class MemoryInfoList(UserList):
             dtype=DT_MEMINFO,
         )
 
-    def insert(self, index, item, name: Optional[str] = ""):
+    def insert(self, index, item, name: str = ""):
         new = self._validate_mi(item, name=name)
         self.data.insert(index, new)
 
-    def append(self, item, name: Optional[str] = ""):
+    def append(self, item, name: str = ""):
         new = self._validate_mi(item, name=name)
         self.data.append(new)
 
@@ -403,7 +410,7 @@ class MemoryInfoList(UserList):
         else:
             self.data.extend(self._validate_mi(item) for item in other)
 
-    def _validate_mi(self, value, name: Optional[str] = ""):
+    def _validate_mi(self, value, name: str = ""):
         # sourcery skip: extract-duplicate-method
         "Check if this is a memory Info object or can be converted to one"
         if isinstance(value, MemoryInfo):
@@ -412,10 +419,9 @@ class MemoryInfoList(UserList):
             if name:
                 value.name = name
             return value
-        if issubclass(type(value), list):
-            # convert list to to a string with newlines
-            value = "\n".join(value)
-            info = MemoryInfo(value)
+        if isinstance(value, list) and isinstance(value[0], str):
+            # convert list to to a string with newlines to be parsed
+            info = MemoryInfo("\n".join(value))
             info.name = name
             info.parent = self
             return info
@@ -484,11 +490,13 @@ class MemoryInfoList(UserList):
         log_text: list[str],
     ) -> MemoryInfoList:
         """Parse a log file which may contain memoryinfo maps and append these to a MemoryInfoList"""
-
-        # setup terminators
-        RE_MEM_INFO_START = r"\*\*\* Memory info (.*) \*\*\*"
-        MEM_INFO_END = "*********************"
-
+        if not log_text:
+            log.debug("No log text to parse")
+            return self
+        if not isinstance(log_text, list):
+            raise TypeError("log_text should be a list of strings")
+        if not isinstance(log_text[0], str):
+            raise TypeError("log_text should be a list of strings")
         # init
         in_mem_info = False
         nr = 0
@@ -496,14 +504,15 @@ class MemoryInfoList(UserList):
         # find the meory_info lines in the (console) log output
         while nr < len(log_text):
             # if the regex matches, start a new map
-            if match := re.match(RE_MEM_INFO_START, log_text[nr]):
+            if match := RE_MEM_INFO_START.match(log_text[nr]):
                 # start a new map
                 mem_info_log = []
                 in_mem_info = True
                 # get the name of the map
                 map_name = match[1]
             if in_mem_info:
-                if log_text[nr].startswith(MEM_INFO_END):
+                # if log_text[nr].startswith(MEM_INFO_END):
+                if RE_MEM_INFO_END.match(log_text[nr]):
                     # At end of the map,
                     in_mem_info = False
                     # add it to the MemoryInfoList
@@ -526,7 +535,7 @@ class MemoryInfoList(UserList):
         max_block_size: bool = False,
         max_free_size: bool = False,
         stack_used: bool = False,
-        time_axis: bool = True,
+        time_axis: bool = False,  # turn off for now due to limited time precision
         add_legend: bool = True,
         size=(12, 4),  # Figure dimension (width, height) in inches.
     ):  # sourcery skip: last-if-guard
@@ -545,20 +554,27 @@ class MemoryInfoList(UserList):
         if time_axis:
             ax1.set_xlabel("Time -->")
             x = self.np_array["datetime"]
-            xfmt = mpl_dates.DateFormatter(DT_FORMAT)
-            ax1.xaxis.set_major_formatter(xfmt)
+            format_date = mpl_dates.DateFormatter(DT_FORMAT)
+            ax1.xaxis.set_major_formatter(format_date)
 
         else:
             ax1.set_xlabel("snapshots -->")
             x = np.arange(len(self))
-            # Set x-axis ticks to the mi_list name
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                # ignore the warning
-                # 'UserWarning: FixedFormatter should only be used together with FixedLocator'
-                ax1.set_xticklabels(self.np_array["description"])
-            # Show 20 ticks at most
-            ax1.locator_params(axis="x", nbins=20)
+            ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins="auto", integer=True))
+
+            def format_x_label(x_value, tick_pos):
+                "formatter function to retrieve the label for the x-axis based onthe x_value that is passed in."
+                try:
+                    idx = int(x_value)  # convert float to int
+                    return self.np_array["description"][idx]  # return the label from the list
+                except IndexError:
+                    return str(x_value)  #  out of range
+
+            # nbins sets the number of major-ticks on the x-axis, integers only as these are used as index into the list
+            ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins="auto", integer=True))
+            # set the formatter function for the x-axis to replace the numbers with the labels
+            ax1.xaxis.set_major_formatter(format_x_label)
+
         # use the memory info list to get the data
         a_free = self.np_array["free"]
         a_used = self.np_array["used"]
@@ -588,8 +604,7 @@ class MemoryInfoList(UserList):
             label.set_horizontalalignment("left")
             label.set_rotation(-10)
             label.set_fontsize("x-small")
-            label.set_fontweight("light")
-            # move the labels a bit up
+            label.set_fontweight("ligsht")
             label.set_y(label.get_position()[1] + 0.01)
         # make more room for the labels below  the figure
         fig.subplots_adjust(bottom=0.1)
@@ -654,7 +669,6 @@ class MemoryInfoList(UserList):
                 f"{line.get_label()} = {y[indx]:_.0f}\n"
                 f"Memory used: {self[indx].used:_.0f} b, free {self[indx].free:_.0f} b"
             )
-            # text = f"{line.get_label()} = {y[indx]:_.0f}\n@{mi_list.np_array[indx]['description']}\nMemory used: {mi_list.np_array[indx]['used']:_.0f} b, free {mi_list.np_array[indx]['free']:_.0f} b"
             annot.set_text(text)
             annot.get_bbox_patch().set_alpha(0.4)  # set the transparency of the box # type: ignore
 
