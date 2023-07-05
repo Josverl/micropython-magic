@@ -39,7 +39,7 @@ class MPRemote2:
         "Creates mpremote 'connect to string' if port is specified."
         return f"connect {self.port} " if self.port else ""
 
-    def run_cmd(self, cmd: str, *, auto_connect: bool = True, stream_out: bool = True, shell=True, timeout=0):
+    def run_cmd(self, cmd: str, *, auto_connect: bool = True, stream_out: bool = True, shell=True, timeout:Union[int,float]=0):
         """run a command on the device and return the output"""
         if auto_connect:
             cmd = f"""{self.cmd_prefix} {cmd}"""
@@ -63,17 +63,17 @@ class MPRemote2:
             output = e
         return output
 
-    def run_cell(self, cell: str):
+    def run_cell(self, cell: str, *, timeout: Union[int,float] = TIMEOUT):
         """run a codeblock on the device and return the output"""
         #     # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
         #     # - may need escaping quotes and newlines
         # copy the cell to a file on the device
         self.cell_to_mcu_file(cell, "__magic.py")
         # run the transferred cell/file
-        result = self.run_mcu_file("__magic.py", stream_out=True)
+        result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout)
         return
 
-    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: int = 0):
+    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int,float] = 0):
         exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
         return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout)
 

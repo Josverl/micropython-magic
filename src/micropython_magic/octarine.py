@@ -17,6 +17,7 @@ from IPython.core.magic_arguments import argument, argument_group, magic_argumen
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
+from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
 
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
@@ -117,6 +118,7 @@ class MpyMagics(Magics):
     @argument("--writefile", "--save", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
     @argument("--readfile", "--load", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
     @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
+    @argument("--timeout", default=TIMEOUT, help="maximum timeout for the cell to run")
     # #
     @argument_group("Devices")
     @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
@@ -167,7 +169,7 @@ class MpyMagics(Magics):
 
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_cell(cell)
+        output = self.MCU.run_cell(cell, timeout=float(args.timeout))
         # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------

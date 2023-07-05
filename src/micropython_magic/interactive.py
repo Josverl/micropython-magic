@@ -55,38 +55,43 @@ def ipython_run(
         process.kill()
         log.warning(f"Command {cmd} timed out after {timeout} seconds")
 
-    process_timer = Timer(interval=timeout, function=timed_out)
-    process_timer.start()
-    while True:
-        # await asyncio.sleep(0.1)
-        if line_based:
-            output = process.stdout.readline()
-            output = output.decode("utf-8", errors="ignore")
+    process_timer = None
+    try:
+        process_timer = Timer(interval=timeout, function=timed_out)
+        process_timer.start()
+        # print(f"{process_timer.is_alive()=}")
+        while process_timer.is_alive():
+            if line_based:
+                output = process.stdout.readline()
+                output = output.decode("utf-8", errors="ignore")
 
-            if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
-                # do not output the line that matched a meminfo regex
-                continue
-        else:
-            output = process.stdout.read(1)
-            output = output.decode("utf-8", errors="ignore")
-            # ToDo # swallow the output if it matches a regex
+                if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
+                    # do not output the line that matched a meminfo regex
+                    continue
+            else:
+                output = process.stdout.read(1)
+                output = output.decode("utf-8", errors="ignore")
+                # ToDo # swallow the output if it matches a regex
 
-        if output == "" and process.poll() is not None:
-            # process has finished, read the rest of the output before breaking out of the loop
-            break
-        if output:
-            all_out.append(output)
-            if stream_out:
-                print(output, end="")
+            if output == "" and process.poll() is not None:
+                # process has finished, read the rest of the output before breaking out of the loop
+                break
+            if output:
+                all_out.append(output)
+                if stream_out:
+                    print(output, end="")
 
-    process_timer.cancel()
-    # rearrange the output to be a list of lines
-    all_out = SList("".join(all_out).splitlines())
-    if store_output:
-        # update the ipython kernel namespace with the output of the command
-        # this is useful for storing the output of a command in a variable
-        # Normally the output of a command is not stored in the kernel namespace
-        ipy: InteractiveShell = get_ipython()  # type: ignore
-        ipy.displayhook.fill_exec_result(all_out)
-        ipy.displayhook.update_user_ns(all_out)
-    return all_out
+        process_timer.cancel()
+        # rearrange the output to be a list of lines
+        all_out = SList("".join(all_out).splitlines())
+        if store_output:
+            # update the ipython kernel namespace with the output of the command
+            # this is useful for storing the output of a command in a variable
+            # Normally the output of a command is not stored in the kernel namespace
+            ipy: InteractiveShell = get_ipython()  # type: ignore
+            ipy.displayhook.fill_exec_result(all_out)
+            ipy.displayhook.update_user_ns(all_out)
+        return all_out
+    finally:
+        if process_timer and process_timer.is_alive():
+            process_timer.cancel()
