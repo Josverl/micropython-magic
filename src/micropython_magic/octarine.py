@@ -182,6 +182,9 @@ class MpyMagics(Magics):
     @argument_group("Code execution")
     @argument("statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)")
     @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
+    @argument("--timeout", default=TIMEOUT, help="maximum timeout for the cell to run")
+    @argument("--stream", action="store_true", help="stream each line of output as it is received")
+
     # @argument("--run", nargs=1, help="file to run on the MCU", metavar="PATH/FILE.PY")
     # --follow / --no-follow switch
     # @argument("--follow",  action=argparse.BooleanOptionalAction, help="follow the output of the MCU")
@@ -235,8 +238,11 @@ class MpyMagics(Magics):
             cmd = f'exec "{statement}"'
             log.debug(f"{cmd=}")
 
-            output = self.MCU.run_cmd(cmd, stream_out=False)
-            return output
+            return self.MCU.run_cmd(
+                cmd,
+                stream_out=bool(args.stream),
+                timeout=float(args.timeout),
+            )
 
     # -------------------------------------------------------------------------
     # worker mothods - these are called by the magics
@@ -257,7 +263,7 @@ class MpyMagics(Magics):
         """
         device = line.strip() if line else "auto"
         output = self.MCU.select_device(device)
-        return just_text(output)
+        return output
 
     def eval(self, line: str):
         """
@@ -302,4 +308,4 @@ class MpyMagics(Magics):
         """
         output = self.MCU.run_cmd("reset")
         self.output = output
-        return just_text(output)
+        return output
