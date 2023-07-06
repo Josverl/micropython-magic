@@ -9,6 +9,7 @@ import re
 import sys
 from typing import List, Optional
 
+import pkg_resources
 from colorama import Style
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
@@ -41,7 +42,7 @@ def set_log_level(llevel: str):
     log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
 
 
-set_log_level("WARNING")
+set_log_level("DEBUG")
 
 
 class PrettyOutput(object):
@@ -194,6 +195,9 @@ class MpyMagics(Magics):
     @argument("--select", "-s", nargs="+", help="serial port to connect to", metavar="PORT")
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
+    @argument("--info", action="store_true", help="get boardinfo from device")
+    #
+    #
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -229,6 +233,17 @@ class MpyMagics(Magics):
         # processing
         if args.list:
             return self.list_devices()
+        elif args.info:
+            #  load datafile  from installed package
+            script_path = pkg_resources.resource_filename("micropython_magic", "scripts/fw_info.py")
+            cmd = ["run", script_path]
+            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=TIMEOUT):
+                try:
+                    # dependency: dict output on first line
+                    if out[0].startswith("{")
+                        r = eval(out[0]) 
+                
+                return eval(out[0])
         elif args.eval:
             return self.eval(args.eval)
 
@@ -257,11 +272,11 @@ class MpyMagics(Magics):
         output = self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
         return output
 
-    def select(self, line: Optional[str]):
+    def select(self, port: Optional[str]):
         """
         Select the device to connect to by specifying the serial port name.
         """
-        device = line.strip() if line else "auto"
+        device = port.strip() if port else "auto"
         output = self.MCU.select_device(device)
         return output
 
