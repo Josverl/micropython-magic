@@ -114,8 +114,12 @@ def _info():  # type:() -> dict[str, str]
             info["arch"] = arch
         # .mpy version.minor
         info["mpy"] = "v{}.{}".format(sys_mpy & 0xFF, sys_mpy >> 8 & 3)
-    # simple to use version[-build] string
-    info["ver"] = f"v{info['version']}-{info['build']}" if info["build"] else f"v{info['version']}"
+    # simple to use version[-build] string avoiding f-strings for backward compat
+    info["ver"] = (
+        "v{version}-{build}".format(version=info["version"], build=info["build"])
+        if info["build"]
+        else "v{version}".format(version=info["version"])
+    )
 
     return info
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micropython-magic"
-version = "0.3.1"
+version = "0.4.0"
 description = "MicroPython Magic commands for use with Jupyter notebooks and Jupyter Labs"
 keywords = [
     "MicroPython",
@@ -42,6 +42,7 @@ pylance = "^0.4.3"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry_bumpversion.file."src/micropython_magic/__init__.py"]
 # configuration for Black.
 
 # NOTE: you have to use single-quoted strings in TOML for regular expressions.

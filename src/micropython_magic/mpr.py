@@ -7,10 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Union
 
-import IPython
-from colorama import Style
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
 from .interactive import ipython_run
@@ -23,9 +20,9 @@ from .interactive import TIMEOUT
 
 
 class MPRemote2:
-    def __init__(self, shell: InteractiveShell, port: str = "auto", resume: bool = True):
+    def __init__(self, shell: InteractiveShell, port: str = "auto", resume: bool = True,):
         self.shell: InteractiveShell = shell
-        self.port: str = "auto"  # by default connect to the first device
+        self.port: str = port  # by default connect to the first device
         self.resume = resume  # by default resume the device to maintain state
         self.timeout = TIMEOUT
 
@@ -39,10 +36,21 @@ class MPRemote2:
         "Creates mpremote 'connect to string' if port is specified."
         return f"connect {self.port} " if self.port else ""
 
-    def run_cmd(self, cmd: str, *, auto_connect: bool = True, stream_out: bool = True, shell=True, timeout:Union[int,float]=0):
+    def run_cmd(
+        self,
+        cmd: Union[str, List[str]],
+        *,
+        auto_connect: bool = True,
+        stream_out: bool = True,
+        shell=True,
+        timeout: Union[int, float] = 0,
+    ):
         """run a command on the device and return the output"""
         if auto_connect:
-            cmd = f"""{self.cmd_prefix} {cmd}"""
+            if isinstance(cmd, str):
+                cmd = f"""{self.cmd_prefix} {cmd}"""
+            else:
+                log.warning(f"cmd is not a string: {cmd}")
         log.debug(cmd)
         return ipython_run(cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout)
 
@@ -52,10 +60,13 @@ class MPRemote2:
         #     raise ConnectionError("no device found")
         # return output
 
-    def select_device(self, line: Optional[str]):
+    def select_device(self, port: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
-        _port = line.strip() if line else "auto"
-        cmd = f"""eval \"'Checking connection to MCU on port {_port}.'\""""
+        _port = port.strip() if port else "auto"
+        if not verify:
+            self.port = _port
+            return _port
+        cmd = f"""eval \"'{_port}'\""""
         try:
             output = self.run_cmd(cmd)
             self.port = _port
@@ -63,7 +74,7 @@ class MPRemote2:
             output = e
         return output
 
-    def run_cell(self, cell: str, *, timeout: Union[int,float] = TIMEOUT):
+    def run_cell(self, cell: str, *, timeout: Union[int, float] = TIMEOUT):
         """run a codeblock on the device and return the output"""
         #     # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
         #     # - may need escaping quotes and newlines
@@ -73,7 +84,7 @@ class MPRemote2:
         result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout)
         return
 
-    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int,float] = 0):
+    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int, float] = 0):
         exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
         return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout)
 

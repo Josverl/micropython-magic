@@ -42,7 +42,7 @@ def set_log_level(llevel: str):
     log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
 
 
-set_log_level("DEBUG")
+set_log_level("WARNING")
 
 
 class PrettyOutput(object):
@@ -59,17 +59,6 @@ class PrettyOutput(object):
 
     def _str_(self):
         return "\n".join(self.data.list)
-
-    # def _repr_pretty_(self, pp, cycle):
-    #     timefmt = "%a %b %d %H:%M:%S %Y %Z"
-    #     text = "Software versions\n"
-    #     text += "-----------------\n"
-    #     text += "Python %s\n" % sys.version
-    #     # for name, version in self.packages:
-    #     #     text += "%s %s\n" % (name, version)
-    #     text += "IPython %s\n" % IPython.__version__
-    #     text += "Timestamp %s\n" % time.strftime(timefmt)
-    #     pp.text(text)S
 
     def _repr_json_(self):
         return self.data
@@ -185,19 +174,12 @@ class MpyMagics(Magics):
     @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
     @argument("--timeout", default=TIMEOUT, help="maximum timeout for the cell to run")
     @argument("--stream", action="store_true", help="stream each line of output as it is received")
-
-    # @argument("--run", nargs=1, help="file to run on the MCU", metavar="PATH/FILE.PY")
-    # --follow / --no-follow switch
-    # @argument("--follow",  action=argparse.BooleanOptionalAction, help="follow the output of the MCU")
-    #
     @argument_group("Devices")
     @argument("--list", "--devs", "-l", action="store_true", help="List available devices.")
     @argument("--select", "-s", nargs="+", help="serial port to connect to", metavar="PORT")
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
     @argument("--info", action="store_true", help="get boardinfo from device")
-    #
-    #
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -238,12 +220,11 @@ class MpyMagics(Magics):
             script_path = pkg_resources.resource_filename("micropython_magic", "scripts/fw_info.py")
             cmd = ["run", script_path]
             if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=TIMEOUT):
-                try:
-                    # dependency: dict output on first line
-                    if out[0].startswith("{")
-                        r = eval(out[0]) 
-                
-                return eval(out[0])
+                if not out[0].startswith("{"):
+                    return out
+                r = eval(out[0])
+                r["serial_port"] = self.MCU.port
+                return r
         elif args.eval:
             return self.eval(args.eval)
 

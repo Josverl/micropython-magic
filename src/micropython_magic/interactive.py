@@ -1,7 +1,8 @@
 import asyncio
 import subprocess
+from dataclasses import dataclass
 from threading import Timer
-from typing import List, Tuple, Union
+from typing import List, Union
 
 from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
@@ -12,13 +13,33 @@ TIMEOUT = 300
 from .memoryinfo import RE_ALL
 
 
+@dataclass
+class LogTags:
+    reset_tags: List[str]
+    error_tags: List[str]
+    warning_tags: List[str]
+    success_tags: List[str]
+    ignore_tags: List[str]
+
+
+DEFAULT_LOG_TAGS = LogTags(
+    reset_tags=["rst cause:1, boot mode:"],
+    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  # "Traceback ",
+    warning_tags=["WARNING:", "WARN  :"],
+    success_tags=["SUCCESS", "SUCCESS~"],
+    ignore_tags=['  File "<stdin>",'],
+)
+
+
 def ipython_run(
-    cmd: Union[List[str], str],
+    cmd: Union[list[str], str],
     stream_out=True,
     timeout: Union[int, float] = TIMEOUT,
     shell: bool = False,
     hide_meminfo: bool = False,
     store_output: bool = True,
+    log_errors: bool = True,
+    tags: LogTags = DEFAULT_LOG_TAGS,
 ) -> SList:
     """Run an external command stream the output back to the Ipython console.
     args:
@@ -68,9 +89,23 @@ def ipython_run(
             if line_based:
                 output = process.stdout.readline()
                 output = output.decode("utf-8", errors="ignore")
-
+                # detect board reset
+                if any(tag in output for tag in tags.reset_tags):
+                    raise RuntimeError(f"Board reset detected : {output}")
+                # detect errors
+                if log_errors and any(tag in output for tag in tags.error_tags):
+                    log.error(output)
+                # detect warnings
+                if any(tag in output for tag in tags.warning_tags):
+                    log.warning(output)
+                # detect success
+                if any(tag in output for tag in tags.success_tags):
+                    log.success(output)
+                # ignore some tags
+                if any(tag in output for tag in tags.ignore_tags):
+                    continue
+                # do not output the line that matched a meminfo regex
                 if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
-                    # do not output the line that matched a meminfo regex
                     continue
             else:
                 output = process.stdout.read(1)
@@ -96,5 +131,8 @@ def ipython_run(
             ipy.displayhook.update_user_ns(all_out)
         return all_out
     finally:
+        if process.stderr and log_errors:
+            for line in process.stderr:
+                log.warning(line)
         if process_timer and process_timer.is_alive():
             process_timer.cancel()
