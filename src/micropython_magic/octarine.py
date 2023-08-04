@@ -16,7 +16,7 @@ from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
 from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
 from IPython.utils.text import LSString, SList
-from loguru import logger as log
+from loguru import logger as log  # type: ignore
 
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
@@ -75,15 +75,26 @@ def just_text(output) -> str:
         return str(output)
 
 
+from traitlets import All
+from traitlets import Float as Float_
+from traitlets import HasTraits
+from traitlets import Integer as Integer_
+from traitlets import Unicode, default, observe, validate
+from traitlets.config.configurable import Configurable
+
+
 @magics_class
 class MpyMagics(Magics):
     """A class to define the magic functions for Micropython."""
+
+    # The default timeout
+    timeout = Float_(TIMEOUT).tag(config=True)
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
         super(MpyMagics, self).__init__(shell)
         self.shell: InteractiveShell
-        self._MCUs: List[MPRemote2] = [MPRemote2(shell)]
+        self._MCUs: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
 
@@ -108,7 +119,7 @@ class MpyMagics(Magics):
     @argument("--writefile", "--save", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
     @argument("--readfile", "--load", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
     @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
-    @argument("--timeout", default=TIMEOUT, help="maximum timeout for the cell to run")
+    @argument("--timeout", default=-1, help="maximum timeout for the cell to run")
     # #
     @argument_group("Devices")
     @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
@@ -119,6 +130,9 @@ class MpyMagics(Magics):
         Run Micropython code on an attached device using mpremote.
         """
         args = parse_argstring(self.micropython, line or "")
+
+        if args.timeout == -1:
+            args.timeout = self.timeout
 
         if args.select:
             if len(args.select) > 1:
@@ -172,7 +186,7 @@ class MpyMagics(Magics):
     @argument_group("Code execution")
     @argument("statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)")
     @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
-    @argument("--timeout", default=TIMEOUT, help="maximum timeout for the cell to run")
+    @argument("--timeout", default=-1, help="maximum timeout for the cell to run")
     @argument("--stream", action="store_true", help="stream each line of output as it is received")
     @argument_group("Devices")
     @argument("--list", "--devs", "-l", action="store_true", help="List available devices.")
@@ -188,6 +202,9 @@ class MpyMagics(Magics):
         - can be silenced with a trailing semicolon when used as a line magic
         """
         args = parse_argstring(self.mpy_line, line or "")
+        if args.timeout == -1:
+            args.timeout = self.timeout
+
         # try to fixup the expression after shell and argparse mangled it
         if args.statement and len(args.statement) >= 1:
             args.statement = get_code(line, args.statement[0])
@@ -219,7 +236,7 @@ class MpyMagics(Magics):
             #  load datafile  from installed package
             script_path = pkg_resources.resource_filename("micropython_magic", "scripts/fw_info.py")
             cmd = ["run", script_path]
-            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=TIMEOUT):
+            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=int(self.timeout)):
                 if not out[0].startswith("{"):
                     return out
                 r = eval(out[0])

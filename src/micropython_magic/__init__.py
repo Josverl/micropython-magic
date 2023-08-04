@@ -8,7 +8,8 @@ from loguru import logger as log
 
 from .magic_transformer import comment_magic_transformer
 from .octarine import MpyMagics
-from .test_magics import TestMagics
+
+# from .exp_magics import ExpMagics
 
 
 def load_ipython_extension(ipython: InteractiveShell):
@@ -16,7 +17,7 @@ def load_ipython_extension(ipython: InteractiveShell):
     ipython.input_transformers_cleanup.append(comment_magic_transformer)
     # register the magics
     ipython.register_magics(MpyMagics)
-    # ipython.register_magics(TestMagics)
+    # ipython.register_magics(ExpMagics)
 
 
 def unload_ipython_extension(ipython: InteractiveShell):
