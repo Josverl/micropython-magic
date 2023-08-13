@@ -1,10 +1,11 @@
 # micropython-magic
+[![CodeFactor](https://www.codefactor.io/repository/github/josverl/micropython-magic/badge/main)](https://www.codefactor.io/repository/github/josverl/micropython-magic/overview/main)
 
-These magic methods allow MicroPython to be used from within any Jupyter Notebook or JupyterLab (formerly IPython Notebook)
+These Jupyter magic methods allow MicroPython to be used from within any Jupyter Notebook or JupyterLab (formerly IPython Notebook)
 The magics make use of the [mpremote tool](https://github.com/micropython/micropython/blob/master/tools/mpremote/README.md) to enable communication with the MCUs 
 
 
-It allows 
+This allows: 
  * Mixing of Host and MCU Code ( and languages if you wish)
  * Creating graphs of the data captured by MCU sensors 
  * create re-uasable sequences ( download/compile firmware - flash firmware - uploade code - run expiriment - same outcome) 
@@ -12,6 +13,7 @@ It allows
  * Rapid Prototyping 
  * Capturing the results and outputs in a consistent way
  * Mixing documentation with code  
+
 
 
 ## Samples 
