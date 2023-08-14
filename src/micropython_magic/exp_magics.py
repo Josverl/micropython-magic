@@ -20,13 +20,12 @@ from IPython.core.magic_arguments import argument, magic_arguments, parse_argstr
 from IPython.display import display
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
-from mpremote import pyboard, pyboardextended
 
 from micropython_magic.octarine import MpyMagics, PrettyOutput
 
 
 @magics_class
-class TestMagics(MpyMagics):
+class ExpMagics(MpyMagics):
     # @cell_magic("cool")
     # def magic_cool(self, line, cell):
     #     """\
