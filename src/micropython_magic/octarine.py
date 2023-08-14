@@ -9,7 +9,6 @@ import re
 import sys
 from typing import List, Optional
 
-import pkg_resources
 from colorama import Style
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
@@ -20,6 +19,7 @@ from loguru import logger as log  # type: ignore
 
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
+from micropython_magic.script_access import path_for_script
 
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 
@@ -234,8 +234,7 @@ class MpyMagics(Magics):
             return self.list_devices()
         elif args.info:
             #  load datafile  from installed package
-            script_path = pkg_resources.resource_filename("micropython_magic", "scripts/fw_info.py")
-            cmd = ["run", script_path]
+            cmd = ["run", str(path_for_script("fw_info.py"))]
             if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=int(self.timeout)):
                 if not out[0].startswith("{"):
                     return out
