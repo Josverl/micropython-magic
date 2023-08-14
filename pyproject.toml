@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micropython-magic"
-version = "0.5.0"
+version = "0.5.1"
 description = "MicroPython Magic commands for use with Jupyter notebooks and Jupyter Labs"
 keywords = [
     "MicroPython",

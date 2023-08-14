@@ -32,7 +32,7 @@ DEFAULT_LOG_TAGS = LogTags(
 
 
 def ipython_run(
-    cmd: Union[list[str], str],
+    cmd: Union[List[str], str],
     stream_out=True,
     timeout: Union[int, float] = TIMEOUT,
     shell: bool = False,
