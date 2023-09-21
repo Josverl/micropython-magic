@@ -62,6 +62,7 @@ def info_str(mem_info) -> str:
         - from str
         = PrettyPrint
     """
+    s = ""
     if "data" in dir(mem_info):
         mem_info = mem_info.data
 
@@ -134,6 +135,7 @@ class MemoryInfo:
 
     def _header(self):
         head = f"{Fore.WHITE}{Back.BLACK}"
+        assert self.parent
         if self.diff_with:
             head += f"{self.parent.data[self.diff_with[0]].name} --> {self.name}\n"
         elif self.name:

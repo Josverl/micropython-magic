@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 import subprocess
 from dataclasses import dataclass
 from threading import Timer
@@ -40,7 +41,7 @@ def ipython_run(
     store_output: bool = True,
     log_errors: bool = True,
     tags: LogTags = DEFAULT_LOG_TAGS,
-) -> SList:
+) -> Optional[SList]:
     """Run an external command stream the output back to the Ipython console.
     args:
         cmd: the command to run, as a list of strings or a single string

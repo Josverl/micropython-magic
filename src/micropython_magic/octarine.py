@@ -133,6 +133,7 @@ class MpyMagics(Magics):
 
         if args.timeout == -1:
             args.timeout = self.timeout
+        assert isinstance(args.timeout, float)
 
         if args.select:
             if len(args.select) > 1:
@@ -173,7 +174,7 @@ class MpyMagics(Magics):
 
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_cell(cell, timeout=float(args.timeout))
+        output = self.MCU.run_cell(cell, timeout=args.timeout)
         # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------
@@ -204,6 +205,7 @@ class MpyMagics(Magics):
         args = parse_argstring(self.mpy_line, line or "")
         if args.timeout == -1:
             args.timeout = self.timeout
+        assert isinstance(args.timeout, float)
 
         # try to fixup the expression after shell and argparse mangled it
         if args.statement and len(args.statement) >= 1:
@@ -235,7 +237,7 @@ class MpyMagics(Magics):
         elif args.info:
             #  load datafile  from installed package
             cmd = ["run", str(path_for_script("fw_info.py"))]
-            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=int(self.timeout)):
+            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=args.timeout):
                 if not out[0].startswith("{"):
                     return out
                 r = eval(out[0])
@@ -260,7 +262,7 @@ class MpyMagics(Magics):
     # worker mothods - these are called by the magics
     # -------------------------------------------------------------------------
 
-    def list_devices(self) -> list:
+    def list_devices(self) -> Optional[SList]:
         """
         Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
         """
@@ -292,17 +294,17 @@ class MpyMagics(Magics):
         cmd = f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
         # print(cmd)
         output = self.MCU.run_cmd(cmd, stream_out=False)
-        matchers = [r"^.*Error:", r"^.*Exception:"]
-
-        for ln in output.l:
-            # check for errors and raise them
-            if any(re.match(m, ln) for m in matchers):
-                raise MCUException(ln) from eval(ln.split(":")[0])
-            # check for json output and try to convert it
-            if ln.startswith(JSON_START) and ln.endswith(JSON_END):
-                result = self.MCU.load_json_from_MCU(ln)
-                if result != DONT_KNOW:
-                    return result
+        if isinstance(output, SList):
+            matchers = [r"^.*Error:", r"^.*Exception:"]
+            for ln in output.l:
+                # check for errors and raise them
+                if any(re.match(m, ln) for m in matchers):
+                    raise MCUException(ln) from eval(ln.split(":")[0])
+                # check for json output and try to convert it
+                if ln.startswith(JSON_START) and ln.endswith(JSON_END):
+                    result = self.MCU.load_json_from_MCU(ln)
+                    if result != DONT_KNOW:
+                        return result
         return output
 
     def soft_reset(self):

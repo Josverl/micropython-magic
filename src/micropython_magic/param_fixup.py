@@ -1,11 +1,11 @@
 """parmeter processing for micropython_magic"""
 
-from typing import Optional
+from typing import List, Optional
 
 from loguru import logger as log
 
 
-def get_code(line: str, partial: str) -> Optional[str]:
+def get_code(line: str, partial: str) -> List[str]:
     """try recover the code from the commandline after argparse has mangled it"""
     log.debug(f"{line=}, {partial=}")
     while partial not in line:
