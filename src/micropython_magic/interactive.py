@@ -44,7 +44,7 @@ def ipython_run(
     log_errors: bool = True,
     tags: LogTags = DEFAULT_LOG_TAGS,
     # port: Optional[str] = "",
-) -> Optional[SList]:  # sourcery skip: use-contextlib-suppress
+) -> Optional[SList]:  # sourcery skip: assign-if-exp, boolean-if-exp-identity, reintroduce-else, remove-unnecessary-cast, use-contextlib-suppress
     """Run an external command stream the output back to the Ipython console.
     args:
         cmd: the command to run, as a list of strings or a single string
@@ -66,11 +66,29 @@ def ipython_run(
     timeout = abs(timeout)
 
     all_out = []
-    # if stream_out:
-    #     # InteractiveShell.ast_node_interactivity = "all"
-    #     pass
+    output = ""
+    def do_output(output) -> bool:
+        # detect board reset
+        if any(tag in output for tag in tags.reset_tags):
+            raise RuntimeError(f"Board reset detected : {output}")
+        # detect errors
+        if log_errors and any(tag in output for tag in tags.error_tags):
+            log.error(output)
+        # detect warnings
+        if any(tag in output for tag in tags.warning_tags):
+            log.warning(output)
+        # detect success
+        if any(tag in output for tag in tags.success_tags):
+            log.success(output)
+        # ignore some tags
+        if any(tag in output for tag in tags.ignore_tags):
+            return False
+        # do not output the line that matched a meminfo regex
+        if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
+            return False
+        return True
+
     log.trace(f"per char , with timeout of {timeout} seconds")
-    # assert timeout > 0
     try:
         process = subprocess.Popen(
             cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=False
@@ -92,26 +110,12 @@ def ipython_run(
             process_timer.start()
         while forever or (process_timer and process_timer.is_alive()):
             if line_based:
+                # TODO: Ctrl-C / KeyboardInterrupt is only detected at line-end (after \n)
                 output = process.stdout.readline()
                 output = output.decode("utf-8", errors="ignore")
-                # detect board reset
-                if any(tag in output for tag in tags.reset_tags):
-                    raise RuntimeError(f"Board reset detected : {output}")
-                # detect errors
-                if log_errors and any(tag in output for tag in tags.error_tags):
-                    log.error(output)
-                # detect warnings
-                if any(tag in output for tag in tags.warning_tags):
-                    log.warning(output)
-                # detect success
-                if any(tag in output for tag in tags.success_tags):
-                    log.success(output)
-                # ignore some tags
-                if any(tag in output for tag in tags.ignore_tags):
+                if not do_output(output):
                     continue
-                # do not output the line that matched a meminfo regex
-                if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
-                    continue
+
             else:
                 output = process.stdout.read(1)
                 output = output.decode("utf-8", errors="ignore")
@@ -124,6 +128,7 @@ def ipython_run(
                 all_out.append(output)
                 if stream_out:
                     print(output, end="")
+                output = ""
 
         # rearrange the output to be a list of lines
         all_out = SList("".join(all_out).splitlines())
@@ -149,6 +154,8 @@ def ipython_run(
             process.kill()
             if process_timer:
                 process_timer.cancel()
+            if output:
+                do_output(output)
 
 
     finally:
