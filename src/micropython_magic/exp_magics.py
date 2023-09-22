@@ -12,7 +12,7 @@ from typing import List, Optional, Union
 
 import IPython
 from colorama import Style
-from IPython.core.display import HTML, Javascript, Markdown, Pretty, ProgressBar, TextDisplayObject, display, update_display
+from IPython.core.display import HTML, Javascript, Markdown, Pretty, ProgressBar, TextDisplayObject, display, update_display, DisplayHandle
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, needs_local_scope, output_can_be_silenced
@@ -46,7 +46,8 @@ class ExpMagics(MpyMagics):
         """just something to test"""
 
         output = ["line 1", "line 2", "line 3"]
-        slow_did = display(Pretty("\n".join(output)), display_id=True)
+        slow_did: DisplayHandle = display(Pretty("\n".join(output)), display_id=True)
+        assert slow_did is not None
 
         for i in range(10):
             time.sleep(1)

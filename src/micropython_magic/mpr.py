@@ -76,13 +76,13 @@ class MPRemote2:
 
     def run_cell(self, cell: str, *, timeout: Union[int, float] = TIMEOUT):
         """run a codeblock on the device and return the output"""
-        #     # TODO: if the cell is small enough, concat the cell with \n an use exec instead of copy
+        #     # TODO: if the cell is small enough, concat the cell with \n and use exec instead of copy
         #     # - may need escaping quotes and newlines
         # copy the cell to a file on the device
         self.cell_to_mcu_file(cell, "__magic.py")
         # run the transferred cell/file
         result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout)
-        return
+        return result # ?
 
     def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int, float] = 0):
         exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""

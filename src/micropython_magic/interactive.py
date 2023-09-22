@@ -1,8 +1,11 @@
-import asyncio
+import contextlib
+import os
+import signal
 import subprocess
+import sys
 from dataclasses import dataclass
 from threading import Timer
-from typing import List, Union
+from typing import List, Optional, Union
 
 from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
@@ -40,7 +43,8 @@ def ipython_run(
     store_output: bool = True,
     log_errors: bool = True,
     tags: LogTags = DEFAULT_LOG_TAGS,
-) -> SList:
+    # port: Optional[str] = "",
+) -> Optional[SList]:  # sourcery skip: use-contextlib-suppress
     """Run an external command stream the output back to the Ipython console.
     args:
         cmd: the command to run, as a list of strings or a single string
@@ -57,6 +61,7 @@ def ipython_run(
     # Only implement line based reading and parsing for now
     # it is, faster, easier to implement and more useful for parsing regexes
     line_based = True
+    interupted = False
     forever = timeout == 0
     timeout = abs(timeout)
 
@@ -68,7 +73,7 @@ def ipython_run(
     # assert timeout > 0
     try:
         process = subprocess.Popen(
-            cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=False
         )  # ,  universal_newlines=True)
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Failed to start {cmd[0]}") from e
@@ -130,9 +135,49 @@ def ipython_run(
             ipy.displayhook.fill_exec_result(all_out)
             ipy.displayhook.update_user_ns(all_out)
         return all_out
+    except KeyboardInterrupt:
+        # if the user presses ctrl-c or stops the cell, 
+        # kill the process and raise a keyboard interrupt
+        with contextlib.suppress(KeyboardInterrupt):
+            interupted = True
+            log.warning("Keyboard interrupt detected")
+            if os.name == 'nt':  # Windows
+                os.kill(process.pid, signal.CTRL_C_EVENT)
+            else:  # Unix-like
+                os.kill(process.pid, signal.SIGINT)
+            # kill the process
+            process.kill()
+            if process_timer:
+                process_timer.cancel()
+
+
     finally:
-        if process.stderr and log_errors:
-            for line in process.stderr:
-                log.warning(line)
-        if process_timer and process_timer.is_alive():
-            process_timer.cancel()
+
+        # ignore unraisable exceptions
+        def unraisable_hook(unraisable):
+            # this is very crude , but seems to be the only way 
+            # to catch both  weakref deletions and keyboard interrupts
+            return
+        sys.unraisablehook = unraisable_hook
+
+        try:
+            if process.stderr and log_errors:
+                for line in process.stderr:
+                    log.warning(line)
+            if not interupted and process_timer and process_timer.is_alive():
+                process_timer.cancel()
+        except Exception:
+            pass
+
+        # TODO: interrupt the script running on the MCU
+        # if interupted:
+            # assert port
+        #     # ignore KeyboardInterrupt
+        #     try:
+        #         # subprocess.run(["mpremote", "connect", port, "eval", "'stop'"])
+        #         conn = Pyboard("COM15")
+        #         conn.serial.write(b"\x03\x03")
+        #         conn.close()
+        #     except KeyboardInterrupt:
+        #         pass
+

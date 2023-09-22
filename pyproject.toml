@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micropython-magic"
-version = "0.5.1"
+version = "0.5.2"
 description = "MicroPython Magic commands for use with Jupyter notebooks and Jupyter Labs"
 keywords = [
     "MicroPython",
@@ -23,6 +23,7 @@ python = "^3.8"
 mpremote = "1.20.0"
 loguru = "^0.7.0"
 matplotlib = "^3.7.2"
+ipympl = "^0.9.3"
 
 [tool.poetry.extras]
 widgets = ["bqplot", "numpy"]
