@@ -1,0 +1,61 @@
+{
+    "version": 1,
+    "author": "Jos Verlinde",
+    "editor": "VSCode",
+    "parts": [
+        {
+            "type": "wokwi-pi-pico",
+            "id": "pico",
+            "top": 0,
+            "left": 0,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-led-ring",
+            "id": "ring1",
+            "top": -25,
+            "left": 125,
+            "attrs": {
+                "pixels": "16",
+                "background": "black"
+            }
+        }
+    ],
+    "connections": [
+        [
+            "ring1:DIN",
+            "pico:GP15",
+            "green",
+            [
+                "v84.35",
+                "h-211.94",
+                "v-17.16"
+            ]
+        ],
+        [
+            "ring1:VCC",
+            "pico:VSYS",
+            "red",
+            [
+                "v49.69",
+                "h-86.34",
+                "v-155.3"
+            ]
+        ],
+        [
+            "ring1:GND",
+            "pico:GND.6",
+            "black",
+            [
+                "v39.69",
+                "h-96.74",
+                "v-39.7"
+            ]
+        ]
+    ],
+    "serialMonitor": {
+        "display": "terminal",
+        "newline": "lf"
+    },
+    "dependencies": {}
+}

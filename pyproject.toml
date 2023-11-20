@@ -41,6 +41,12 @@ notebook = "^6.5.4"
 pylance = "^0.4.3"
 
 
+[tool.poetry.group.tools]
+optional = true
+[tool.poetry.group.tools.dependencies]
+requests = "^2.31.0"
+beautifulsoup4 = "^4.12.2"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
