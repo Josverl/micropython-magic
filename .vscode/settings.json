@@ -29,16 +29,13 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "editor.formatOnSave": true,
-    "python.formatting.provider": "none",
     "jupyter.showVariableViewWhenDebugging": true,
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-    },
     "notebook.output.textLineLimit": 50,
     "notebook.find.scope": {
         "markupSource": true,
         "markupPreview": false,
         "codeSource": true,
         "codeOutput": false
-    }
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter"
 }

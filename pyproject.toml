@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micropython-magic"
-version = "0.5.2"
+version = "0.6.0"
 description = "MicroPython Magic commands for use with Jupyter notebooks and Jupyter Labs"
 keywords = [
     "MicroPython",
@@ -20,7 +20,7 @@ exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-mpremote = "1.20.0"
+mpremote = "1.21.0"
 loguru = "^0.7.0"
 matplotlib = "^3.7.2"
 ipympl = "^0.9.3"
@@ -40,6 +40,12 @@ numpy = "^1.24.2"
 notebook = "^6.5.4"
 pylance = "^0.4.3"
 
+
+[tool.poetry.group.tools]
+optional = true
+[tool.poetry.group.tools.dependencies]
+requests = "^2.31.0"
+beautifulsoup4 = "^4.12.2"
 
 [build-system]
 requires = ["poetry-core"]

@@ -44,6 +44,7 @@ class MPRemote2:
         stream_out: bool = True,
         shell=True,
         timeout: Union[int, float] = 0,
+        follow: bool = True,
     ):
         """run a command on the device and return the output"""
         if auto_connect:
@@ -52,7 +53,7 @@ class MPRemote2:
             else:
                 log.warning(f"cmd is not a string: {cmd}")
         log.debug(cmd)
-        return ipython_run(cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout)
+        return ipython_run(cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout, follow=follow)
 
         # output = self.shell.getoutput(cmd, split=True)
         # assert isinstance(output, SList)
@@ -74,19 +75,19 @@ class MPRemote2:
             output = e
         return output
 
-    def run_cell(self, cell: str, *, timeout: Union[int, float] = TIMEOUT):
+    def run_cell(self, cell: str, *, timeout: Union[int, float] = TIMEOUT, follow: bool = True):
         """run a codeblock on the device and return the output"""
         #     # TODO: if the cell is small enough, concat the cell with \n and use exec instead of copy
         #     # - may need escaping quotes and newlines
         # copy the cell to a file on the device
         self.cell_to_mcu_file(cell, "__magic.py")
         # run the transferred cell/file
-        result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout)
+        result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout, follow=follow)
         return result # ?
 
-    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int, float] = 0):
+    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int, float] = 0, follow: bool = True):
         exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
-        return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout)
+        return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout, follow=follow)
 
     def cell_to_mcu_file(self, cell, filename):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:

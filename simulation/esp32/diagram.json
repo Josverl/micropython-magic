@@ -1,0 +1,68 @@
+{
+    "version": 1,
+    "author": "Uri Shaked",
+    "editor": "wokwi",
+    "parts": [
+        {
+            "type": "wokwi-esp32-devkit-v1",
+            "id": "esp",
+            "top": 0,
+            "left": 0,
+            "attrs": {
+                "firmwareOffset": "0"
+            }
+        },
+        {
+            "type": "wokwi-led-ring",
+            "id": "ring1",
+            "top": -25,
+            "left": 125,
+            "attrs": {
+                "pixels": "16",
+                "background": "black"
+            }
+        }
+    ],
+    "connections": [
+        [
+            "esp:TX0",
+            "$serialMonitor:RX",
+            "",
+            []
+        ],
+        [
+            "esp:RX0",
+            "$serialMonitor:TX",
+            "",
+            []
+        ],
+        [
+            "ring1:DIN",
+            "esp:D15",
+            "green",
+            [
+                "v0"
+            ]
+        ],
+        [
+            "ring1:VCC",
+            "esp:3V3",
+            "red",
+            [
+                "v0"
+            ]
+        ],
+        [
+            "ring1:GND",
+            "esp:GND.1",
+            "black",
+            [
+                "v0"
+            ]
+        ]
+    ],
+    "serialMonitor": {
+        "display": "terminal",
+        "newline": "lf"
+    }
+}
