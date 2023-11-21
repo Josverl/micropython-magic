@@ -115,15 +115,42 @@ class MpyMagics(Magics):
     @cell_magic("micropython")
     @cell_magic("mpy")
     @magic_arguments("%micropython")  # add additional % to display two %% in help
+    #
     @argument_group("Code execution")
-    @argument("--writefile", "--save", "-wf", type=str, help="MCU [path/]filename to write to", metavar="PATH/FILE.PY")
-    @argument("--readfile", "--load", "-rf", type=str, help="MCU [path/]filename to read from", metavar="PATH/FILE.PY")
-    @argument("--new", action="store_true", help="new cell is added after the current cell instead of replacing it")
+    @argument(
+        "--writefile",
+        "--save",
+        "-wf",
+        type=str,
+        help="MCU [path/]filename to write to",
+        metavar="PATH/FILE.PY",
+    )
+    @argument(
+        "--readfile",
+        "--load",
+        "-rf",
+        type=str,
+        help="MCU [path/]filename to read from",
+        metavar="PATH/FILE.PY",
+    )
+    @argument(
+        "--new",
+        action="store_true",
+        help="new cell is added after the current cell instead of replacing it",
+    )
     @argument("--timeout", default=-1, help="maximum timeout for the cell to run")
-    # #
+    @argument(
+        "--follow",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="follow the output",
+    )
+    #
     @argument_group("Devices")
     @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
-    @argument("--reset", "--soft-reset", action="store_true", help="Reset device (before running cell).")
+    @argument(
+        "--reset", "--soft-reset", action="store_true", help="Reset device (before running cell)."
+    )
     @argument("--hard-reset", action="store_true", help="reset device.")
     def micropython(self, line: str, cell: str = ""):
         """
@@ -174,7 +201,7 @@ class MpyMagics(Magics):
 
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_cell(cell, timeout=args.timeout)
+        output = self.MCU.run_cell(cell, timeout=args.timeout, follow=args.follow)
         # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------

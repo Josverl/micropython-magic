@@ -43,8 +43,11 @@ def ipython_run(
     store_output: bool = True,
     log_errors: bool = True,
     tags: LogTags = DEFAULT_LOG_TAGS,
+    follow: bool = True,
     # port: Optional[str] = "",
-) -> Optional[SList]:  # sourcery skip: assign-if-exp, boolean-if-exp-identity, reintroduce-else, remove-unnecessary-cast, use-contextlib-suppress
+) -> Optional[
+    SList
+]:  # sourcery skip: assign-if-exp, boolean-if-exp-identity, reintroduce-else, remove-unnecessary-cast, use-contextlib-suppress
     """Run an external command stream the output back to the Ipython console.
     args:
         cmd: the command to run, as a list of strings or a single string
@@ -53,6 +56,9 @@ def ipython_run(
         shell: run the command in a shell
         hide_meminfo: hide the output of  micropython.mem_info() from the console ( it will still be available in the execution value)
         store_output: store the output of the command in the ipython kernel namespace
+        log_errors: log errors to the console
+        tags: a LogTags object containing the tags to detect in the output
+        follow: follow the output of the command until it finishes
 
     returns:
         (exit_code:int, output:List[str])
@@ -67,6 +73,7 @@ def ipython_run(
 
     all_out = []
     output = ""
+
     def do_output(output) -> bool:
         # detect board reset
         if any(tag in output for tag in tags.reset_tags):
@@ -91,13 +98,20 @@ def ipython_run(
     log.trace(f"per char , with timeout of {timeout} seconds")
     try:
         process = subprocess.Popen(
-            cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=False
+            cmd,
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=False,
         )  # ,  universal_newlines=True)
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Failed to start {cmd[0]}") from e
 
     assert process.stdout is not None
-
+    if follow == False:
+        # we do not need to follow the output of the command
+        # just return
+        return None
     process_timer = None
     try:
         if not forever:
@@ -141,12 +155,12 @@ def ipython_run(
             ipy.displayhook.update_user_ns(all_out)
         return all_out
     except KeyboardInterrupt:
-        # if the user presses ctrl-c or stops the cell, 
+        # if the user presses ctrl-c or stops the cell,
         # kill the process and raise a keyboard interrupt
         with contextlib.suppress(KeyboardInterrupt):
             interupted = True
             log.warning("Keyboard interrupt detected")
-            if os.name == 'nt':  # Windows
+            if os.name == "nt":  # Windows
                 os.kill(process.pid, signal.CTRL_C_EVENT)
             else:  # Unix-like
                 os.kill(process.pid, signal.SIGINT)
@@ -157,14 +171,13 @@ def ipython_run(
             if output:
                 do_output(output)
 
-
     finally:
-
         # ignore unraisable exceptions
         def unraisable_hook(unraisable):
-            # this is very crude , but seems to be the only way 
+            # this is very crude , but seems to be the only way
             # to catch both  weakref deletions and keyboard interrupts
             return
+
         sys.unraisablehook = unraisable_hook
 
         try:
@@ -178,7 +191,7 @@ def ipython_run(
 
         # TODO: interrupt the script running on the MCU
         # if interupted:
-            # assert port
+        # assert port
         #     # ignore KeyboardInterrupt
         #     try:
         #         # subprocess.run(["mpremote", "connect", port, "eval", "'stop'"])
@@ -187,4 +200,3 @@ def ipython_run(
         #         conn.close()
         #     except KeyboardInterrupt:
         #         pass
-
