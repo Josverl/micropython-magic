@@ -232,7 +232,8 @@ class MpyMagics(Magics):
         args = parse_argstring(self.mpy_line, line or "")
         if args.timeout == -1:
             args.timeout = self.timeout
-        assert isinstance(args.timeout, float)
+        if not isinstance(args.timeout, float):
+            args.timeout = float(args.timeout)  # type: ignore
 
         # try to fixup the expression after shell and argparse mangled it
         if args.statement and len(args.statement) >= 1:
