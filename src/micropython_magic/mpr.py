@@ -20,7 +20,12 @@ from .interactive import TIMEOUT
 
 
 class MPRemote2:
-    def __init__(self, shell: InteractiveShell, port: str = "auto", resume: bool = True,):
+    def __init__(
+        self,
+        shell: InteractiveShell,
+        port: str = "auto",
+        resume: bool = True,
+    ):
         self.shell: InteractiveShell = shell
         self.port: str = port  # by default connect to the first device
         self.resume = resume  # by default resume the device to maintain state
@@ -53,7 +58,9 @@ class MPRemote2:
             else:
                 log.warning(f"cmd is not a string: {cmd}")
         log.debug(cmd)
-        return ipython_run(cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout, follow=follow)
+        return ipython_run(
+            cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout, follow=follow
+        )
 
         # output = self.shell.getoutput(cmd, split=True)
         # assert isinstance(output, SList)
@@ -75,23 +82,62 @@ class MPRemote2:
             output = e
         return output
 
-    def run_cell(self, cell: str, *, timeout: Union[int, float] = TIMEOUT, follow: bool = True):
+    def run_cell(
+        self,
+        cell: str,
+        *,
+        timeout: Union[int, float] = TIMEOUT,
+        follow: bool = True,
+        mount: Optional[str] = None,
+    ):
         """run a codeblock on the device and return the output"""
-        #     # TODO: if the cell is small enough, concat the cell with \n and use exec instead of copy
-        #     # - may need escaping quotes and newlines
-        # copy the cell to a file on the device
-        self.cell_to_mcu_file(cell, "__magic.py")
-        # run the transferred cell/file
-        result = self.run_mcu_file("__magic.py", stream_out=True, timeout=timeout, follow=follow)
-        return result # ?
+        """copy cell to a file and run it on the MCU"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(
+                "# Jupyter cell\n"
+            )  # add a line to replace the cell magic to keep the line numbers aligned
+            f.write(cell)
+            f.close()
+            # copy the file to the device
+            run_cmd = f"run {f.name}"
+            if mount:
+                # prefix the run command with a mount command
+                run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
 
-    def run_mcu_file(self, filename: str, stream_out: bool = True, timeout: Union[int, float] = 0, follow: bool = True):
-        exec_cmd = f"exec \"exec( open('{filename}').read() , globals() )\""
+            # TODO: detect / retry / report errors copying the file
+            result = self.run_cmd(
+                run_cmd,
+                stream_out=True,
+                timeout=timeout,
+                follow=follow,
+            )
+            # log.info(_)
+            # log.info(f.name, "copied to device")
+            Path(f.name).unlink()
+        return result
+
+    def run_mcu_file(
+        self,
+        filename: str,
+        *,
+        stream_out: bool = True,
+        timeout: Union[int, float] = 0,
+        follow: bool = True,
+        mount: Optional[str] = None,
+    ):
+        """run a file on the device and return the output"""
+        exec_cmd = ""
+        if mount:
+            exec_cmd = f'mount "{mount}" '
+        exec_cmd += f"exec \"exec( open('{filename}').read() , globals() )\""
         return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout, follow=follow)
 
-    def cell_to_mcu_file(self, cell, filename):
+    def copy_cell_to_mcu(self, cell, *, filename: str):
+        """copy cell to a file to the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("# Jupyter cell\n")  # add a line to replace the cell magic to keep the line numbers aligned
+            f.write(
+                "# Jupyter cell\n"
+            )  # add a line to replace the cell magic to keep the line numbers aligned
             f.write(cell)
             f.close()
             # copy the file to the device
