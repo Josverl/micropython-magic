@@ -88,7 +88,7 @@ class MpyMagics(Magics):
     """A class to define the magic functions for Micropython."""
 
     # The default timeout
-    timeout = Float_(TIMEOUT).tag(config=True)
+    timeout = Float_(TIMEOUT).tag(config=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
@@ -116,6 +116,13 @@ class MpyMagics(Magics):
     @cell_magic("mpy")
     @magic_arguments("%micropython")  # add additional % to display two %% in help
     #
+    @argument_group("Mount")
+    @argument(
+        "--mount",
+        type=str,
+        help="Host folder to mount on the MCU",
+        metavar="A/FOLDER",
+    )
     @argument_group("Code execution")
     @argument(
         "--writefile",
@@ -183,7 +190,7 @@ class MpyMagics(Magics):
             log.debug(f"{args.writefile=}")
             if args.new:
                 log.warning(f"{args.new=} not implemented")
-            self.MCU.cell_to_mcu_file(cell, args.writefile)
+            self.MCU.copy_cell_to_mcu(cell,filename= args.writefile)
             return
 
         if args.readfile:
@@ -201,7 +208,9 @@ class MpyMagics(Magics):
 
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
-        output = self.MCU.run_cell(cell, timeout=args.timeout, follow=args.follow)
+        output = self.MCU.run_cell(
+            cell, timeout=args.timeout, follow=args.follow, mount=args.mount
+        )
         # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------
@@ -223,7 +232,6 @@ class MpyMagics(Magics):
     @argument("--hard-reset", action="store_true", help="reset device.")
     @argument("--info", action="store_true", help="get boardinfo from device")
     @argument("--bootloader", action="store_true", help="make the device enter its bootloader")
-
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
