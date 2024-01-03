@@ -222,6 +222,8 @@ class MpyMagics(Magics):
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
     @argument("--info", action="store_true", help="get boardinfo from device")
+    @argument("--bootloader", action="store_true", help="make the device enter its bootloader")
+
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -258,6 +260,8 @@ class MpyMagics(Magics):
             self.hard_reset()
         elif args.reset:
             self.soft_reset()
+        elif args.bootloader:
+            self.MCU.run_cmd("bootloader")
 
         # processing
         if args.list:
