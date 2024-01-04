@@ -76,6 +76,7 @@ def just_text(output) -> str:
 
 
 from traitlets import All
+from traitlets import Bool as Bool_
 from traitlets import Float as Float_
 from traitlets import HasTraits
 from traitlets import Integer as Integer_
@@ -84,15 +85,16 @@ from traitlets.config.configurable import Configurable
 
 
 @magics_class
-class MpyMagics(Magics):
+class MicropythonMagic(Magics):
     """A class to define the magic functions for Micropython."""
 
     # The default timeout
     timeout = Float_(TIMEOUT).tag(config=True)  # type: ignore
+    verbose = Bool_(False).tag(config=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
-        super(MpyMagics, self).__init__(shell)
+        super(MicropythonMagic, self).__init__(shell)
         self.shell: InteractiveShell
         self._MCUs: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
@@ -190,7 +192,7 @@ class MpyMagics(Magics):
             log.debug(f"{args.writefile=}")
             if args.new:
                 log.warning(f"{args.new=} not implemented")
-            self.MCU.copy_cell_to_mcu(cell,filename= args.writefile)
+            self.MCU.copy_cell_to_mcu(cell, filename=args.writefile)
             return
 
         if args.readfile:

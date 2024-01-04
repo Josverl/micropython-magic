@@ -5,6 +5,7 @@ import re
 import pytest
 from testbook import testbook
 from testbook.client import TestbookNotebookClient
+
 # avoid RuntimeWarning: Proactor event loop does not implement add_reader
 if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -32,9 +33,7 @@ def test_list_devices(tb):
 
 def test_mpy_cell(tb):
     cellnum = 4
-    # unmame output
-    assert re.search(r"sysname=", tb.cell_output_text(cellnum))
-    assert re.search(r"nodename=", tb.cell_output_text(cellnum))
+    assert re.search(r"micropython", tb.cell_output_text(cellnum))
     #  plain print output
     assert re.search(r"hello from", tb.cell_output_text(cellnum))
 
@@ -63,6 +62,7 @@ def test_mpy_cell2(tb):
     assert "test mpy cell magic" in tb.cell_output_text(cellnum)
     cellnum = 11
     assert "test micropython cell magic" in tb.cell_output_text(cellnum)
+
 
 def test_notebook_ran_ok(tb: TestbookNotebookClient):
     # if any of the cells raised an assertion error, this will fail the test

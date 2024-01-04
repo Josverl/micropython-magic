@@ -12,20 +12,37 @@ from typing import List, Optional, Union
 
 import IPython
 from colorama import Style
-from IPython.core.display import HTML, Javascript, Markdown, Pretty, ProgressBar, TextDisplayObject, display, update_display, DisplayHandle
+from IPython.core.display import (
+    HTML,
+    DisplayHandle,
+    Javascript,
+    Markdown,
+    Pretty,
+    ProgressBar,
+    TextDisplayObject,
+    display,
+    update_display,
+)
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, needs_local_scope, output_can_be_silenced
+from IPython.core.magic import (
+    Magics,
+    cell_magic,
+    line_magic,
+    magics_class,
+    needs_local_scope,
+    output_can_be_silenced,
+)
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
-from micropython_magic.octarine import MpyMagics, PrettyOutput
+from micropython_magic.octarine import MicropythonMagic, PrettyOutput
 
 
 @magics_class
-class ExpMagics(MpyMagics):
+class ExpMagics(MicropythonMagic):
     # @cell_magic("cool")
     # def magic_cool(self, line, cell):
     #     """\

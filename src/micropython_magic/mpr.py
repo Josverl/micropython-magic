@@ -16,6 +16,8 @@ JSON_START = "<json~"
 JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
 
+import os
+
 from .interactive import TIMEOUT
 
 
@@ -99,21 +101,30 @@ class MPRemote2:
             f.write(cell)
             f.close()
             # copy the file to the device
+            log.debug(f"copied cell to {f.name}")
+            file_attributes = os.stat(f.name)
+            log.debug(f"{file_attributes=}")
             run_cmd = f"run {f.name}"
             if mount:
                 # prefix the run command with a mount command
                 run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
 
             # TODO: detect / retry / report errors copying the file
-            result = self.run_cmd(
-                run_cmd,
-                stream_out=True,
-                timeout=timeout,
-                follow=follow,
-            )
+            log.debug(f"running {run_cmd}")
+            try:
+                result = self.run_cmd(
+                    run_cmd,
+                    stream_out=True,
+                    timeout=timeout,
+                    follow=follow,
+                )
+            except Exception as e:
+                result = e
+
             # log.info(_)
             # log.info(f.name, "copied to device")
-            Path(f.name).unlink()
+            finally:
+                Path(f.name).unlink()
         return result
 
     def run_mcu_file(

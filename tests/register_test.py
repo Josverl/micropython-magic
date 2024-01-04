@@ -22,12 +22,12 @@ def tb():
 
 def test_cell_magics_registered(tb):
     cellnum = 3
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
+    assert "MicropythonMagic" in tb.cell_output_text(cellnum)
 
 
 def test_line_magics_registered(tb):
     cellnum = 4
-    assert "MpyMagics" in tb.cell_output_text(cellnum)
+    assert "MicropythonMagic" in tb.cell_output_text(cellnum)
 
 
 def test_notebook_ran_ok(tb: TestbookNotebookClient):
