@@ -38,7 +38,7 @@ def set_log_level(llevel: str):
     # format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
     # format_str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
     format_str = "<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    log.remove(0)
+    log.remove()
     log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
 
 
@@ -75,30 +75,51 @@ def just_text(output) -> str:
         return str(output)
 
 
+import enum
+
 from traitlets import All
 from traitlets import Bool as Bool_
+from traitlets import Enum as Enum_
 from traitlets import Float as Float_
-from traitlets import HasTraits
-from traitlets import Integer as Integer_
-from traitlets import Unicode, default, observe, validate
+from traitlets import HasTraits, Unicode, UseEnum, default, observe, validate
 from traitlets.config.configurable import Configurable
 
 
+class LogLevel(str, enum.Enum):
+    """Log level"""
+
+    TRACE = "TRACE"
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
 @magics_class
-class MicropythonMagic(Magics):
+class MicroPythonMagic(Magics):
     """A class to define the magic functions for Micropython."""
 
     # The default timeout
-    timeout = Float_(TIMEOUT).tag(config=True)  # type: ignore
-    verbose = Bool_(False).tag(config=True)  # type: ignore
+    timeout = Float_(TIMEOUT).tag(config=True, sync=True)  # type: ignore
+    # verbose = Bool_(False).tag(config=True, sync=True)  # type: ignore
+    loglevel = UseEnum(LogLevel, default_value=LogLevel.WARNING).tag(config=True)
+    # .tag(config=True, sync=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
-        super(MicropythonMagic, self).__init__(shell)
+        super(MicroPythonMagic, self).__init__(shell)
         self.shell: InteractiveShell
         self._MCUs: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
+
+    @observe("loglevel")
+    def _verbose_changed(self, change):
+        # print(f"{change=}")
+        if change["new"]:
+            set_log_level(change["new"])
+        else:
+            set_log_level(LogLevel.WARNING)
 
     @property
     def port(self) -> None:
@@ -201,7 +222,7 @@ class MicropythonMagic(Magics):
             # if the first line contains a magic command, replace it with this magic command but with the options commented out
             if code.startswith("# %%"):
                 code = "\n".join(code.split("\n")[1:])
-            code = f"# %%micropython # {line}\n{code}"  # todo - use the same notation as the original command
+            code = f"# %%micropython # {line}\n{code}"  # todo - use the same notation for the first line as the original command
             if args.new:
                 self.shell.set_next_input(code, replace=False)
             else:
@@ -210,6 +231,7 @@ class MicropythonMagic(Magics):
 
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
+        log.trace(f"{cell=}")
         output = self.MCU.run_cell(
             cell, timeout=args.timeout, follow=args.follow, mount=args.mount
         )

@@ -38,11 +38,11 @@ from IPython.display import display
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
-from micropython_magic.octarine import MicropythonMagic, PrettyOutput
+from micropython_magic.octarine import MicroPythonMagic, PrettyOutput
 
 
 @magics_class
-class ExpMagics(MicropythonMagic):
+class ExpMagics(MicroPythonMagic):
     # @cell_magic("cool")
     # def magic_cool(self, line, cell):
     #     """\

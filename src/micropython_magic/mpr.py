@@ -101,16 +101,16 @@ class MPRemote2:
             f.write(cell)
             f.close()
             # copy the file to the device
-            log.debug(f"copied cell to {f.name}")
+            log.trace(f"copied cell to {f.name}")
             file_attributes = os.stat(f.name)
-            log.debug(f"{file_attributes=}")
+            log.trace(f"{file_attributes=}")
             run_cmd = f"run {f.name}"
             if mount:
                 # prefix the run command with a mount command
                 run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
 
             # TODO: detect / retry / report errors copying the file
-            log.debug(f"running {run_cmd}")
+            log.trace(f"running {run_cmd}")
             try:
                 result = self.run_cmd(
                     run_cmd,
@@ -118,11 +118,11 @@ class MPRemote2:
                     timeout=timeout,
                     follow=follow,
                 )
+                if result:
+                    log.trace(f"result: {result}")
             except Exception as e:
                 result = e
 
-            # log.info(_)
-            # log.info(f.name, "copied to device")
             finally:
                 Path(f.name).unlink()
         return result
