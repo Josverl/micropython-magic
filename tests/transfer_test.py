@@ -20,7 +20,6 @@ def tb():
         yield tb
 
 
-
-def test_notebook_ran_ok(tb: TestbookNotebookClient):
+def test_transfers_from_MCU(tb: TestbookNotebookClient):
     # if any of the cells raised an assertion error, this will fail the test
     assert tb.code_cells_executed > 0  # at least one cell executed
