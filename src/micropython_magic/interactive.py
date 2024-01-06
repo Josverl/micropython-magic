@@ -35,7 +35,7 @@ DEFAULT_LOG_TAGS = LogTags(
 
 
 def ipython_run(
-    cmd: Union[List[str], str],
+    cmd: List[str],
     stream_out=True,
     timeout: Union[int, float] = TIMEOUT,
     shell: bool = False,
@@ -50,7 +50,7 @@ def ipython_run(
 ]:  # sourcery skip: assign-if-exp, boolean-if-exp-identity, reintroduce-else, remove-unnecessary-cast, use-contextlib-suppress
     """Run an external command stream the output back to the Ipython console.
     args:
-        cmd: the command to run, as a list of strings or a single string
+        cmd: the command to run, as a list of strings
         stream_out: stream the output back to the console as it is received (per line)
         timeout: the timeout in seconds, defaults to 300 seconds (5 mins)
         shell: run the command in a shell
@@ -95,7 +95,8 @@ def ipython_run(
             return False
         return True
 
-    log.trace(f"per char , with timeout of {timeout} seconds")
+    log.debug(f"{'line' if line_based else 'char'} based, with timeout of {timeout} seconds")
+    assert isinstance(cmd, list)
     try:
         process = subprocess.Popen(
             cmd,

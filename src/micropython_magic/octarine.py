@@ -293,7 +293,7 @@ class MicroPythonMagic(Magics):
         elif args.reset:
             self.soft_reset()
         elif args.bootloader:
-            self.MCU.run_cmd("bootloader")
+            self.MCU.run_cmd(["bootloader"])
 
         # processing
         if args.list:
@@ -301,7 +301,7 @@ class MicroPythonMagic(Magics):
         elif args.info:
             #  load datafile  from installed package
             cmd = ["run", str(path_for_script("fw_info.py"))]
-            if out := self.MCU.run_cmd(" ".join(cmd), stream_out=False, timeout=args.timeout):
+            if out := self.MCU.run_cmd(cmd, stream_out=False, timeout=args.timeout):
                 if not out[0].startswith("{"):
                     return out
                 r = eval(out[0])
@@ -313,7 +313,7 @@ class MicroPythonMagic(Magics):
         elif args.statement:
             # Assemble the command to run
             statement = "\n".join(args.statement)
-            cmd = f'exec "{statement}"'
+            cmd = ["exec", statement]
             log.debug(f"{cmd=}")
 
             return self.MCU.run_cmd(
@@ -330,7 +330,7 @@ class MicroPythonMagic(Magics):
         """
         Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
         """
-        cmd = "mpremote connect list"
+        cmd = ["mpremote", "connect", "list"]
         # output = self.shell.getoutput(cmd)
         output = self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
         return output
@@ -355,8 +355,15 @@ class MicroPythonMagic(Magics):
         """
         # Assemble the command to run
         statement = line.strip()
-        cmd = f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
-        # print(cmd)
+        cmd_old = (
+            f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
+        )
+        cmd = [
+            "exec",
+            # f'''"import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"''',
+            f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
+        ]
+        log.trace(repr(cmd))
         output = self.MCU.run_cmd(cmd, stream_out=False)
         if isinstance(output, SList):
             matchers = [r"^.*Error:", r"^.*Exception:"]
@@ -376,7 +383,7 @@ class MicroPythonMagic(Magics):
         Perform a soft-reset on the current Micropython device.
         """
         # Append an eval statement to avoid ending up in the repl
-        output = self.MCU.run_cmd("soft-reset eval True")
+        output = self.MCU.run_cmd(["soft-reset", "eval", "True"])
         self.output = output
         return just_text(output)
 
@@ -384,6 +391,6 @@ class MicroPythonMagic(Magics):
         """
         Perform a hard-reset on the current Micropython device.
         """
-        output = self.MCU.run_cmd("reset")
+        output = self.MCU.run_cmd(["reset"])
         self.output = output
         return output
