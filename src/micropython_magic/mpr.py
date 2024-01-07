@@ -9,6 +9,7 @@ from typing import List, Optional, Union
 
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
+from micropython_magic.script_access import path_for_script
 
 from .interactive import ipython_run
 
@@ -198,3 +199,14 @@ class MPRemote2:
                 # result = None
                 pass
         return result
+
+    def get_fw_info(self, timeout: float):
+        fw_info = {}
+        #  load datafile from installed package
+        cmd = ["run", str(path_for_script("fw_info.py"))]
+        if out := self.run_cmd(cmd, stream_out=False, timeout=timeout):
+            if not out[0].startswith("{"):
+                return out
+            fw_info = eval(out[0])
+            fw_info["serial_port"] = self.port
+        return fw_info

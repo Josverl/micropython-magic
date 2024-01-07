@@ -19,7 +19,6 @@ from loguru import logger as log  # type: ignore
 
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
-from micropython_magic.script_access import path_for_script
 
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 
@@ -97,7 +96,7 @@ class LogLevel(str, enum.Enum):
 
 @magics_class
 class MicroPythonMagic(Magics):
-    """A class to define the magic functions for Micropython."""
+    """A class to define the magic functions for MicroPython."""
 
     # The default timeout
     timeout = Float_(TIMEOUT).tag(config=True, sync=True)  # type: ignore
@@ -299,14 +298,8 @@ class MicroPythonMagic(Magics):
         if args.list:
             return self.list_devices()
         elif args.info:
-            #  load datafile  from installed package
-            cmd = ["run", str(path_for_script("fw_info.py"))]
-            if out := self.MCU.run_cmd(cmd, stream_out=False, timeout=args.timeout):
-                if not out[0].startswith("{"):
-                    return out
-                r = eval(out[0])
-                r["serial_port"] = self.MCU.port
-                return r
+            return self.get_fw_info(args.timeout)
+
         elif args.eval:
             return self.eval(args.eval)
 
@@ -323,7 +316,7 @@ class MicroPythonMagic(Magics):
             )
 
     # -------------------------------------------------------------------------
-    # worker mothods - these are called by the magics
+    # worker methods - these are called by the magics
     # -------------------------------------------------------------------------
 
     def list_devices(self) -> Optional[SList]:
@@ -394,3 +387,6 @@ class MicroPythonMagic(Magics):
         output = self.MCU.run_cmd(["reset"])
         self.output = output
         return output
+
+    def get_fw_info(self, timeout: float):
+        return self.MCU.get_fw_info(timeout)
