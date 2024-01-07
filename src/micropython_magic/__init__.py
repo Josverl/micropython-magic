@@ -1,5 +1,5 @@
 """MicroPython magics for Jupyter Notebooks and JupyterLabs"""
-__version__ = "0.8.1"
+__version__ = "0.8.2a0"
 __author__ = "Jos Verlinde"
 
 
