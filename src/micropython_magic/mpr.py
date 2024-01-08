@@ -3,12 +3,14 @@
 
 import contextlib
 import json
+import sys
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Union
 
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
+
 from micropython_magic.script_access import path_for_script
 
 from .interactive import ipython_run
@@ -37,8 +39,7 @@ class MPRemote2:
     @property
     def cmd_prefix(self) -> List[str]:
         """mpremote command prefix including port and resume according to options"""
-        # return f"mpremote {self.connect_to}{'resume' if self.resume else ''} "
-        prefix = ["mpremote"] + self.connect_to
+        prefix = [sys.executable, "-m", "mpremote"] + self.connect_to
         if self.resume:
             prefix.append("resume")
         return prefix
