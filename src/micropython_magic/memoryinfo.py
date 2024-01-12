@@ -19,7 +19,9 @@ from matplotlib.backend_bases import MouseEvent
 from matplotlib.lines import Line2D
 
 RE_HEAD_1 = re.compile(r"GC: total: (\d+), used: (\d+), free: (\d+)")
-RE_HEAD_2 = re.compile(r"\s?No. of 1-blocks: (\d+), 2-blocks: (\d+), max blk sz: (\d+), max free sz: (\d+)")
+RE_HEAD_2 = re.compile(
+    r"\s?No. of 1-blocks: (\d+), 2-blocks: (\d+), max blk sz: (\d+), max free sz: (\d+)"
+)
 RE_D_TIME = re.compile(r"time:\s?(\([\d|,|\s]+\))")
 RE_STACK = re.compile(r"stack: (\d+) out of (\d+)")
 RE_BLOCK = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
@@ -28,7 +30,16 @@ RE_FREE = re.compile(r"\((.*) lines all free\)")
 RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info (.*) \*\*\*")
 RE_MEM_INFO_END = re.compile(r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*")
 
-RE_ALL = [RE_HEAD_1, RE_HEAD_2, RE_D_TIME, RE_STACK, RE_BLOCK, RE_FREE, RE_MEM_INFO_START, RE_MEM_INFO_END]
+RE_ALL = [
+    RE_HEAD_1,
+    RE_HEAD_2,
+    RE_D_TIME,
+    RE_STACK,
+    RE_BLOCK,
+    RE_FREE,
+    RE_MEM_INFO_START,
+    RE_MEM_INFO_END,
+]
 
 #  a numpy datatype to hold the memory info for a series of memory maps
 DT_MEMINFO = np.dtype(
@@ -135,8 +146,8 @@ class MemoryInfo:
 
     def _header(self):
         head = f"{Fore.WHITE}{Back.BLACK}"
-        assert self.parent
         if self.diff_with:
+            assert self.parent, "No MemoryInfoList.parent, cannot compare"
             head += f"{self.parent.data[self.diff_with[0]].name} --> {self.name}\n"
         elif self.name:
             head += f"{self.name}\n"
@@ -361,7 +372,12 @@ class MemoryInfoList(UserList):
     """A list of MemoryInfo objects that is used to store a series of memory map of the device"""
 
     def __init__(
-        self, iterable: Optional[Iterable] = None, *, show_free: bool = True, rainbow: bool = False, columns: int = 4
+        self,
+        iterable: Optional[Iterable] = None,
+        *,
+        show_free: bool = True,
+        rainbow: bool = False,
+        columns: int = 4,
     ):
         self.show_free: bool = show_free  # show the free blocks - default True
         self.rainbow: bool = rainbow  # color the blocks in rainbow colors
@@ -433,7 +449,9 @@ class MemoryInfoList(UserList):
             info.parent = self
             return info
         else:
-            raise TypeError(f"MemoryInfo object or string value expected, got {type(value).__name__}")
+            raise TypeError(
+                f"MemoryInfo object or string value expected, got {type(value).__name__}"
+            )
 
     def play(self, start=None, end=None, step=1, delay=0.1, did=None):
         """Play the memory map as a movie, with a diff of n - 1"""
@@ -584,7 +602,9 @@ class MemoryInfoList(UserList):
         ##################################################################################
         # configure both axes
         ##################################################################################
-        ax1.yaxis.set_major_formatter(lambda x, pos: f"{x/KB_DIVIDER:_.0f} Kb")  # integers in thousands notation
+        ax1.yaxis.set_major_formatter(
+            lambda x, pos: f"{x/KB_DIVIDER:_.0f} Kb"
+        )  # integers in thousands notation
         ax1.set_ylabel("Memory (Kb)")
         ax1.set_xmargin(0)
         ax1.set_ymargin(0)
@@ -630,15 +650,25 @@ class MemoryInfoList(UserList):
         my_lines: List[Line2D] = []
         # Add line charts to 2nd axis
         if one_blocks:
-            my_lines += ax2.plot(x, self.np_array["1-blocks"], label="1-Blocks", marker=".", linestyle="-.")
+            my_lines += ax2.plot(
+                x, self.np_array["1-blocks"], label="1-Blocks", marker=".", linestyle="-."
+            )
         if two_blocks:
-            my_lines += ax2.plot(x, self.np_array["2-blocks"], label="2-Blocks", marker=".", linestyle="--")
+            my_lines += ax2.plot(
+                x, self.np_array["2-blocks"], label="2-Blocks", marker=".", linestyle="--"
+            )
         if max_block_size:
-            my_lines += ax2.plot(x, self.np_array["max block"], label="Max Block Size", marker=".", linestyle="--")
+            my_lines += ax2.plot(
+                x, self.np_array["max block"], label="Max Block Size", marker=".", linestyle="--"
+            )
         if max_free_size:
-            my_lines += ax2.plot(x, self.np_array["max free"], label="Max Free Size", marker=".", linestyle="--")
+            my_lines += ax2.plot(
+                x, self.np_array["max free"], label="Max Free Size", marker=".", linestyle="--"
+            )
         if stack_used:
-            my_lines += ax2.plot(x, self.np_array["stack used"], label="Stack Used", marker=".", linestyle="--")
+            my_lines += ax2.plot(
+                x, self.np_array["stack used"], label="Stack Used", marker=".", linestyle="--"
+            )
 
         if add_legend:
             # Add legend and show plot, best location left-ish top

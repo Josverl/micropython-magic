@@ -3,12 +3,15 @@
 
 import contextlib
 import json
+import sys
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Union
 
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
+
+from micropython_magic.script_access import path_for_script
 
 from .interactive import ipython_run
 
@@ -34,18 +37,24 @@ class MPRemote2:
         self.timeout = TIMEOUT
 
     @property
-    def cmd_prefix(self):
+    def cmd_prefix(self) -> List[str]:
         """mpremote command prefix including port and resume according to options"""
-        return f"mpremote {self.connect_to}{'resume' if self.resume else ''} "
+        prefix = [sys.executable, "-m", "mpremote"] + self.connect_to
+        if self.resume:
+            prefix.append("resume")
+        return prefix
 
     @property
-    def connect_to(self):
+    def connect_to(self) -> List[str]:
         "Creates mpremote 'connect to string' if port is specified."
-        return f"connect {self.port} " if self.port else ""
+        c = ["connect"]
+        if self.port:
+            c.append(self.port)
+        return c
 
     def run_cmd(
         self,
-        cmd: Union[str, List[str]],
+        cmd: List[str],
         *,
         auto_connect: bool = True,
         stream_out: bool = True,
@@ -54,11 +63,13 @@ class MPRemote2:
         follow: bool = True,
     ):
         """run a command on the device and return the output"""
+        assert isinstance(cmd, list)
         if auto_connect:
-            if isinstance(cmd, str):
-                cmd = f"""{self.cmd_prefix} {cmd}"""
-            else:
-                log.warning(f"cmd is not a string: {cmd}")
+            cmd = self.cmd_prefix + cmd
+            # if isinstance(cmd, str):
+            #     cmd = f"""{self.cmd_prefix} {cmd}"""
+            # else:
+            #     log.warning(f"cmd is not a string: {cmd}")
         log.debug(cmd)
         return ipython_run(
             cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout, follow=follow
@@ -76,7 +87,8 @@ class MPRemote2:
         if not verify:
             self.port = _port
             return _port
-        cmd = f"""eval \"'{_port}'\""""
+        # cmd = f"""eval \"'{_port}'\""""
+        cmd = ["eval", f"\"'{_port}'\""]
         try:
             output = self.run_cmd(cmd)
             self.port = _port
@@ -104,10 +116,11 @@ class MPRemote2:
             log.trace(f"copied cell to {f.name}")
             file_attributes = os.stat(f.name)
             log.trace(f"{file_attributes=}")
-            run_cmd = f"run {f.name}"
+            run_cmd = ["run", f.name]  # TODO: may need to add quotes around f.name
             if mount:
                 # prefix the run command with a mount command
-                run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
+                # run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
+                run_cmd = ["mount", mount] + run_cmd
 
             # TODO: detect / retry / report errors copying the file
             log.trace(f"running {run_cmd}")
@@ -119,7 +132,7 @@ class MPRemote2:
                     follow=follow,
                 )
                 if result:
-                    log.trace(f"result: {result}")
+                    log.debug(f"result: {result}")
             except Exception as e:
                 result = e
 
@@ -137,10 +150,10 @@ class MPRemote2:
         mount: Optional[str] = None,
     ):
         """run a file on the device and return the output"""
-        exec_cmd = ""
+        exec_cmd = []
         if mount:
-            exec_cmd = f'mount "{mount}" '
-        exec_cmd += f"exec \"exec( open('{filename}').read() , globals() )\""
+            exec_cmd = ["mount" + f'"{mount}"']
+        exec_cmd += ["exec", f"\"exec( open('{filename}').read() , globals() )\""]
         return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout, follow=follow)
 
     def copy_cell_to_mcu(self, cell, *, filename: str):
@@ -152,7 +165,7 @@ class MPRemote2:
             f.write(cell)
             f.close()
             # copy the file to the device
-            copy_cmd = f"cp {f.name} :{filename}"
+            copy_cmd = ["cp", f.name, f":{filename}"]
             # TODO: detect / retry / report errors copying the file
             _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
             # log.info(_)
@@ -162,7 +175,8 @@ class MPRemote2:
     def cell_from_mcu_file(self, filename):
         """read a file from the device and return the contents"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            copy_cmd = f"cp :{filename} {f.name}"
+            # copy_cmd = f"cp :{filename} {f.name}"
+            copy_cmd = ["cp", f":{filename}", f.name]
             # TODO: detect / retry / report errors copying the file
             _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
 
@@ -186,3 +200,14 @@ class MPRemote2:
                 # result = None
                 pass
         return result
+
+    def get_fw_info(self, timeout: float):
+        fw_info = {}
+        #  load datafile from installed package
+        cmd = ["run", str(path_for_script("fw_info.py"))]
+        if out := self.run_cmd(cmd, stream_out=False, timeout=timeout):
+            if not out[0].startswith("{"):
+                return out
+            fw_info = eval(out[0])
+            fw_info["serial_port"] = self.port
+        return fw_info
