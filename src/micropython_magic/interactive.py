@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -23,14 +24,18 @@ class LogTags:
     warning_tags: List[str]
     success_tags: List[str]
     ignore_tags: List[str]
+    trace_tags: List[str]
+    trace_res: List[str]
 
 
 DEFAULT_LOG_TAGS = LogTags(
     reset_tags=["rst cause:1, boot mode:"],
-    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  # "Traceback ",
+    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  #
     warning_tags=["WARNING:", "WARN  :"],
     success_tags=["SUCCESS", "SUCCESS~"],
-    ignore_tags=['  File "<stdin>",'],
+    ignore_tags=[],
+    trace_tags=["Traceback (most recent call last)", '   File "<stdin>", '],
+    trace_res=[r"\s+File \"[\w<>.]+\", line \d+, in .*"],
 )
 
 
@@ -74,13 +79,21 @@ def ipython_run(
     all_out = []
     output = ""
 
-    def do_output(output) -> bool:
+    def do_output(output: str) -> bool:
+        """Assess a line of output, return True if the output should be displayed"""
         # detect board reset
         if any(tag in output for tag in tags.reset_tags):
             raise RuntimeError(f"Board reset detected : {output}")
         # detect errors
         if log_errors and any(tag in output for tag in tags.error_tags):
             log.error(output)
+            return False
+        # detect tracebacks
+        if any(tag in output for tag in tags.trace_tags) or any(
+            re.match(rx, output) for rx in tags.trace_res
+        ):
+            log.warning(output.rstrip())
+            return False
         # detect warnings
         if any(tag in output for tag in tags.warning_tags):
             log.warning(output)
@@ -91,7 +104,7 @@ def ipython_run(
         if any(tag in output for tag in tags.ignore_tags):
             return False
         # do not output the line that matched a meminfo regex
-        if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
+        if hide_meminfo and output and any(rx.match(output) for rx in RE_ALL):
             return False
         return True
 
@@ -126,15 +139,16 @@ def ipython_run(
         while forever or (process_timer and process_timer.is_alive()):
             if line_based:
                 # TODO: Ctrl-C / KeyboardInterrupt is only detected at line-end (after \n)
-                output = process.stdout.readline()
-                output = output.decode("utf-8", errors="ignore")
+                output_b = process.stdout.readline()
+                output = output_b.decode("utf-8", errors="ignore")
+                log.trace(f"output: {output}")
                 if not do_output(output):
                     continue
 
             else:
-                output = process.stdout.read(1)
-                output = output.decode("utf-8", errors="ignore")
+                output_b = process.stdout.read(1)
                 # ToDo # swallow the output if it matches a regex
+                output = output_b.decode("utf-8", errors="ignore")
 
             if output == "" and process.poll() is not None:
                 # process has finished, read the rest of the output before breaking out of the loop

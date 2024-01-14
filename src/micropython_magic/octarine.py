@@ -4,9 +4,13 @@ Run micropython code from a a notebook
  - uses resume to avoid soft-resetting the MCU
 """
 
+# https://ipython.readthedocs.io/en/stable/config/custommagics.html
+# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
+# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
+
 import argparse
+import enum
 import re
-import sys
 from typing import List, Optional
 
 from colorama import Style
@@ -16,32 +20,23 @@ from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, out
 from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
 from IPython.utils.text import LSString, SList
 from loguru import logger as log  # type: ignore
+from traitlets import Float as Float_
+from traitlets import UseEnum, observe
 
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
 
+from .logger import set_log_level
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 
-# https://ipython.readthedocs.io/en/stable/config/custommagics.html
-# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
-# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
+# set the log level to WARNING
+set_log_level("WARNING")
 
 
 class MCUException(Exception):
     """Exception raised for errors on the MCU."""
 
     pass
-
-
-def set_log_level(llevel: str):
-    # format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
-    # format_str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    format_str = "<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    log.remove()
-    log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
-
-
-set_log_level("WARNING")
 
 
 class PrettyOutput(object):
@@ -72,16 +67,6 @@ def just_text(output) -> str:
         return output
     else:
         return str(output)
-
-
-import enum
-
-from traitlets import All
-from traitlets import Bool as Bool_
-from traitlets import Enum as Enum_
-from traitlets import Float as Float_
-from traitlets import HasTraits, Unicode, UseEnum, default, observe, validate
-from traitlets.config.configurable import Configurable
 
 
 class LogLevel(str, enum.Enum):
