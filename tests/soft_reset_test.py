@@ -28,8 +28,8 @@ def test_value_retained(tb):
 def test_value_cleared(tb):
     cellnum = 5
     output = tb.cells[cellnum]["outputs"][-1]
-    assert "error" in output["output_type"]
-    assert "NameError" in output["evalue"]
+    assert "stream" == output["output_type"]
+    assert "NameError" in output["text"]
     # assert "foo" in output["evalue"]
 
 
