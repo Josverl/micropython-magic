@@ -26,17 +26,11 @@ from traitlets import UseEnum, observe
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
 
-from .logger import set_log_level
+from .logger import LogLevel, MCUException, set_log_level
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 
 # set the log level to WARNING
 set_log_level("WARNING")
-
-
-class MCUException(Exception):
-    """Exception raised for errors on the MCU."""
-
-    pass
 
 
 class PrettyOutput(object):
@@ -69,16 +63,6 @@ def just_text(output) -> str:
         return str(output)
 
 
-class LogLevel(str, enum.Enum):
-    """Log level"""
-
-    TRACE = "TRACE"
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-
-
 @magics_class
 class MicroPythonMagic(Magics):
     """A class to define the magic functions for MicroPython."""
@@ -98,10 +82,11 @@ class MicroPythonMagic(Magics):
         # self.resume = True  # by default resume the device to maintain state
 
     @observe("loglevel")
-    def _verbose_changed(self, change):
+    def _loglevel_changed(self, change):
         # print(f"{change=}")
         if change["new"]:
             set_log_level(change["new"])
+            log.info(f"Log level set to {change['new']}")
         else:
             set_log_level(LogLevel.WARNING)
 
