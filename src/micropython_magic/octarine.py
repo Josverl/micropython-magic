@@ -56,10 +56,6 @@ class MicroPythonMagic(Magics):
             set_log_level(LogLevel.WARNING)
 
     @property
-    def port(self) -> None:
-        return None
-
-    @property
     def MCU(self) -> MPRemote2:
         """Return the first/current/only MCU"""
         # to allow expansion to multiple MCUs in the future
