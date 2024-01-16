@@ -43,7 +43,7 @@ class MicroPythonMagic(Magics):
         # first call the parent constructor
         super(MicroPythonMagic, self).__init__(shell)
         self.shell: InteractiveShell
-        self._MCUs: list[MPRemote2] = [MPRemote2(shell)]
+        self._MCU: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
 
@@ -59,7 +59,7 @@ class MicroPythonMagic(Magics):
     def MCU(self) -> MPRemote2:
         """Return the first/current/only MCU"""
         # to allow expansion to multiple MCUs in the future
-        return self._MCUs[0]
+        return self._MCU[0]
 
     # -------------------------------------------------------------------------
     # cell magics
