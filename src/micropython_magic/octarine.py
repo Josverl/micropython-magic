@@ -9,11 +9,9 @@ Run micropython code from a a notebook
 # https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
 
 import argparse
-import enum
 import re
-from typing import List, Optional
+from typing import Optional
 
-from colorama import Style
 from IPython.core.error import UsageError
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
@@ -33,45 +31,13 @@ from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 set_log_level("WARNING")
 
 
-class PrettyOutput(object):
-    """"""
-
-    def __init__(self, data):
-        self.data = data
-
-    def __getattr__(self, item):
-        return getattr(self.data, item)
-
-    def __repr__(self):
-        return repr(self.data)
-
-    def _str_(self):
-        return "\n".join(self.data.list)
-
-    def _repr_json_(self):
-        return self.data
-        # return json.dumps(self.data, indent=2)
-
-
-def just_text(output) -> str:
-    """returns the text output of the command"""
-    if isinstance(output, SList):
-        return "\n".join(output.list)
-    elif isinstance(output, LSString):
-        return output
-    else:
-        return str(output)
-
-
 @magics_class
 class MicroPythonMagic(Magics):
     """A class to define the magic functions for MicroPython."""
 
     # The default timeout
     timeout = Float_(TIMEOUT).tag(config=True, sync=True)  # type: ignore
-    # verbose = Bool_(False).tag(config=True, sync=True)  # type: ignore
     loglevel = UseEnum(LogLevel, default_value=LogLevel.WARNING).tag(config=True)
-    # .tag(config=True, sync=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
@@ -83,10 +49,9 @@ class MicroPythonMagic(Magics):
 
     @observe("loglevel")
     def _loglevel_changed(self, change):
-        # print(f"{change=}")
         if change["new"]:
-            set_log_level(change["new"])
             log.info(f"Log level set to {change['new']}")
+            set_log_level(change["new"])
         else:
             set_log_level(LogLevel.WARNING)
 
@@ -348,7 +313,7 @@ class MicroPythonMagic(Magics):
         # Append an eval statement to avoid ending up in the repl
         output = self.MCU.run_cmd(["soft-reset", "eval", "True"])
         self.output = output
-        return just_text(output)
+        return output
 
     def hard_reset(self):
         """
