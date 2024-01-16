@@ -13,3 +13,4 @@ scratch
 
 .idea
 .coverage
+.coverage.*

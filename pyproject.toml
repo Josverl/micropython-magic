@@ -91,3 +91,17 @@ omit = [
     "**/exp_magics.py",
     ]
 relative_files = true
+parallel = false
+branch = true
+
+[tool.coverage.html]
+directory = "coverage"
+
+[tool.coverage.xml]
+output = "coverage/coverage.xml"
+
+[tool.coverage.json]
+output = "coverage/coverage.json"
+
+[tool.coverage.lcov]
+output = "coverage/coverage.lcov"
