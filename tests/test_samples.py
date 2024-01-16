@@ -28,7 +28,7 @@ folder = Path("samples")
 )
 def test_samples(fname: Path):
     print(f"Executing notebook {fname}")
-    # TODO:check for correct port before running test, not after
+    # Check for correct port before running the test
     if "_" in Path(fname).stem:
         port = Path(fname).stem.split("_")[-1]
         if port in ["samd", "rp2"]:
