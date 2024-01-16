@@ -12,7 +12,9 @@ import argparse
 import re
 from typing import Optional
 
+import traitlets
 from IPython.core.error import UsageError
+from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
 from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
@@ -31,6 +33,16 @@ from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 set_log_level("WARNING")
 
 
+def set_xmode(mode="Minimal"):
+    """Set the exception mode to Minimal to reduce the Cpython traceback to a single line"""
+    ip: InteractiveShell = get_ipython()  # type: ignore
+    if ip:
+        print(f"Current {ip.InteractiveTB.mode=}")
+        if ip.InteractiveTB.mode != mode:
+            ip.InteractiveTB.set_mode(mode=mode)
+            print(f"New {ip.InteractiveTB.mode=}")
+
+
 @magics_class
 class MicroPythonMagic(Magics):
     """A class to define the magic functions for MicroPython."""
@@ -38,6 +50,7 @@ class MicroPythonMagic(Magics):
     # The default timeout
     timeout = Float_(TIMEOUT).tag(config=True, sync=True)  # type: ignore
     loglevel = UseEnum(LogLevel, default_value=LogLevel.WARNING).tag(config=True)
+    xmode = traitlets.Unicode("Minimal").tag(config=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
@@ -46,6 +59,7 @@ class MicroPythonMagic(Magics):
         self._MCU: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
+        set_xmode(mode=str(self.xmode))
 
     @observe("loglevel")
     def _loglevel_changed(self, change):
@@ -54,6 +68,11 @@ class MicroPythonMagic(Magics):
             set_log_level(change["new"])
         else:
             set_log_level(LogLevel.WARNING)
+
+    @observe("xmode")
+    def _xmode_changed(self, change):
+        if change["new"]:
+            set_xmode(change["new"])
 
     @property
     def MCU(self) -> MPRemote2:
@@ -165,7 +184,6 @@ class MicroPythonMagic(Magics):
         output = self.MCU.run_cell(
             cell, timeout=args.timeout, follow=args.follow, mount=args.mount
         )
-        # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------
     # line magics
