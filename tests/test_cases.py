@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 from pathlib import Path
 
 import pytest
@@ -17,11 +16,15 @@ folder = Path("tests/testbook_cases")
 
 # parameterize the test to it for each notebook in the samples folder
 @pytest.mark.parametrize(
-    "fname",
+    "notebook_file",
     [f.as_posix() for f in folder.glob("*.ipynb")],
 )
-def test_case(fname):
-    print(f"Executing notebook {fname}")
-    with testbook(fname, execute=True) as tb:
+def test_case(notebook_file):
+    print(f"Executing notebook {notebook_file}")
+    with testbook(notebook_file, execute=True) as tb:
         # if any of the cells raised an assertion error, this will fail the test
+        print(f"Executed {tb.code_cells_executed} cells")
         assert tb.code_cells_executed > 0  # at least one cell executed
+        # count the code cells in the notebook with non-empty source
+        cell_count = len([c for c in tb.nb["cells"] if c["cell_type"] == "code" and c["source"].strip()])
+        assert tb.code_cells_executed == cell_count, f"All {cell_count} code cells should have executed."
