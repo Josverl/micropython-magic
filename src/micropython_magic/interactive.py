@@ -58,9 +58,7 @@ def do_output(output: str, tags: LogTags, log_errors=True, hide_meminfo=False) -
         #     raise MCUException(output)
         # return False
     # detect tracebacks
-    if any(tag in output for tag in tags.trace_tags) or any(
-        re.match(rx, output) for rx in tags.trace_res
-    ):
+    if any(tag in output for tag in tags.trace_tags) or any(re.match(rx, output) for rx in tags.trace_res):
         log.warning(output.rstrip())
         return False
     # detect warnings
@@ -151,7 +149,7 @@ def ipython_run(
                 # TODO: Ctrl-C / KeyboardInterrupt is only detected at line-end (after \n)
                 output_b = process.stdout.readline()
                 output = output_b.decode("utf-8", errors="ignore")
-                if "no device found" in output:
+                if "no device found" in output or "failed to access" in output:
                     raise ConnectionError(output.strip())
                 log.trace(f"output: {output}")
                 if not do_output(output, tags, log_errors=log_errors, hide_meminfo=hide_meminfo):
