@@ -12,7 +12,7 @@ if os.name == "nt":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
-folder = Path("tests/cases")
+folder = Path("tests/testbook_cases")
 
 
 # parameterize the test to it for each notebook in the samples folder

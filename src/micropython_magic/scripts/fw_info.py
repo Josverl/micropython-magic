@@ -12,6 +12,13 @@ def _build(s):
     return s.split("-")[1] if "-" in s else ""
 
 
+def version_str(version: tuple):  #  -> str:
+    v_str = ".".join([str(n) for n in version[:3]])
+    if len(version) > 3 and version[3]:
+        v_str += "-" + version[3]
+    return v_str
+
+
 def _info():  # type:() -> dict[str, str]
     # sourcery skip: use-contextlib-suppress, use-fstring-for-formatting, use-named-expression
     info = dict(
@@ -30,7 +37,7 @@ def _info():  # type:() -> dict[str, str]
         }
     )
     try:
-        info["version"] = ".".join([str(n) for n in sys.implementation.version]).rstrip(".")
+        info["version"] = version_str(sys.implementation.version)
     except AttributeError:
         pass
     try:

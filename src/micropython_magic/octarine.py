@@ -4,94 +4,43 @@ Run micropython code from a a notebook
  - uses resume to avoid soft-resetting the MCU
 """
 
+# https://ipython.readthedocs.io/en/stable/config/custommagics.html
+# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
+# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
+
 import argparse
 import re
-import sys
-from typing import List, Optional
+from typing import Optional
 
-from colorama import Style
+import traitlets
 from IPython.core.error import UsageError
+from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
 from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
 from IPython.utils.text import LSString, SList
 from loguru import logger as log  # type: ignore
+from traitlets import Float as Float_
+from traitlets import UseEnum, observe
 
 from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
 
+from .logger import LogLevel, MCUException, set_log_level
 from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
 
-# https://ipython.readthedocs.io/en/stable/config/custommagics.html
-# https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.magic.html#IPython.core.magic.Magics
-# https://nbviewer.org/github/rossant/ipython-minibook/blob/master/chapter6/602-cpp.ipynb
-
-
-class MCUException(Exception):
-    """Exception raised for errors on the MCU."""
-
-    pass
-
-
-def set_log_level(llevel: str):
-    # format_str = "<level>{level: <8}</level> | <cyan>{module: <18}</cyan> - <level>{message}</level>"
-    # format_str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    format_str = "<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    log.remove()
-    log.add(sys.stdout, format=format_str, level=llevel, colorize=True)
-
-
+# set the log level to WARNING
 set_log_level("WARNING")
 
 
-class PrettyOutput(object):
-    """"""
-
-    def __init__(self, data):
-        self.data = data
-
-    def __getattr__(self, item):
-        return getattr(self.data, item)
-
-    def __repr__(self):
-        return repr(self.data)
-
-    def _str_(self):
-        return "\n".join(self.data.list)
-
-    def _repr_json_(self):
-        return self.data
-        # return json.dumps(self.data, indent=2)
-
-
-def just_text(output) -> str:
-    """returns the text output of the command"""
-    if isinstance(output, SList):
-        return "\n".join(output.list)
-    elif isinstance(output, LSString):
-        return output
-    else:
-        return str(output)
-
-
-import enum
-
-from traitlets import All
-from traitlets import Bool as Bool_
-from traitlets import Enum as Enum_
-from traitlets import Float as Float_
-from traitlets import HasTraits, Unicode, UseEnum, default, observe, validate
-from traitlets.config.configurable import Configurable
-
-
-class LogLevel(str, enum.Enum):
-    """Log level"""
-
-    TRACE = "TRACE"
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
+def set_xmode(mode="Minimal"):
+    """Set the exception mode to Minimal to reduce the Cpython traceback to a single line"""
+    ip: InteractiveShell = get_ipython()  # type: ignore
+    if ip:
+        print(f"Current {ip.InteractiveTB.mode=}")
+        if ip.InteractiveTB.mode != mode:
+            ip.InteractiveTB.set_mode(mode=mode)
+            print(f"New {ip.InteractiveTB.mode=}")
 
 
 @magics_class
@@ -100,35 +49,36 @@ class MicroPythonMagic(Magics):
 
     # The default timeout
     timeout = Float_(TIMEOUT).tag(config=True, sync=True)  # type: ignore
-    # verbose = Bool_(False).tag(config=True, sync=True)  # type: ignore
     loglevel = UseEnum(LogLevel, default_value=LogLevel.WARNING).tag(config=True)
-    # .tag(config=True, sync=True)  # type: ignore
+    xmode = traitlets.Unicode("Minimal").tag(config=True)  # type: ignore
 
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
         super(MicroPythonMagic, self).__init__(shell)
         self.shell: InteractiveShell
-        self._MCUs: list[MPRemote2] = [MPRemote2(shell)]
+        self._MCU: list[MPRemote2] = [MPRemote2(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
+        set_xmode(mode=str(self.xmode))
 
     @observe("loglevel")
-    def _verbose_changed(self, change):
-        # print(f"{change=}")
+    def _loglevel_changed(self, change):
         if change["new"]:
+            log.info(f"Log level set to {change['new']}")
             set_log_level(change["new"])
         else:
             set_log_level(LogLevel.WARNING)
 
-    @property
-    def port(self) -> None:
-        return None
+    @observe("xmode")
+    def _xmode_changed(self, change):
+        if change["new"]:
+            set_xmode(change["new"])
 
     @property
     def MCU(self) -> MPRemote2:
         """Return the first/current/only MCU"""
         # to allow expansion to multiple MCUs in the future
-        return self._MCUs[0]
+        return self._MCU[0]
 
     # -------------------------------------------------------------------------
     # cell magics
@@ -234,7 +184,6 @@ class MicroPythonMagic(Magics):
         output = self.MCU.run_cell(
             cell, timeout=args.timeout, follow=args.follow, mount=args.mount
         )
-        # return PrettyOutput(output)
 
     # -------------------------------------------------------------------------
     # line magics
@@ -378,7 +327,7 @@ class MicroPythonMagic(Magics):
         # Append an eval statement to avoid ending up in the repl
         output = self.MCU.run_cmd(["soft-reset", "eval", "True"])
         self.output = output
-        return just_text(output)
+        return output
 
     def hard_reset(self):
         """

@@ -11,6 +11,7 @@ from typing import List, Optional, Union
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
 
+from micropython_magic.logger import MCUException
 from micropython_magic.script_access import path_for_script
 
 from .interactive import ipython_run
@@ -70,16 +71,16 @@ class MPRemote2:
             #     cmd = f"""{self.cmd_prefix} {cmd}"""
             # else:
             #     log.warning(f"cmd is not a string: {cmd}")
-        log.debug(cmd)
-        return ipython_run(
-            cmd, stream_out=stream_out, shell=shell, timeout=timeout or self.timeout, follow=follow
-        )
+        with log.contextualize(port=self.port):
+            log.debug(cmd)
+            return ipython_run(
+                cmd,
+                stream_out=stream_out,
+                shell=shell,
+                timeout=timeout or self.timeout,
+                follow=follow,
+            )
 
-        # output = self.shell.getoutput(cmd, split=True)
-        # assert isinstance(output, SList)
-        # if len(output) > 0 and output[0].strip() == "no device found":
-        #     raise ConnectionError("no device found")
-        # return output
 
     def select_device(self, port: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
@@ -107,15 +108,8 @@ class MPRemote2:
         """run a codeblock on the device and return the output"""
         """copy cell to a file and run it on the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(
-                "# Jupyter cell\n"
-            )  # add a line to replace the cell magic to keep the line numbers aligned
-            f.write(cell)
-            f.close()
+            self._cell_to_file(f, cell)
             # copy the file to the device
-            log.trace(f"copied cell to {f.name}")
-            file_attributes = os.stat(f.name)
-            log.trace(f"{file_attributes=}")
             run_cmd = ["run", f.name]  # TODO: may need to add quotes around f.name
             if mount:
                 # prefix the run command with a mount command
@@ -133,8 +127,12 @@ class MPRemote2:
                 )
                 if result:
                     log.debug(f"result: {result}")
-            except Exception as e:
-                result = e
+            except (MCUException, ConnectionError) as e:
+                raise e
+            # except Exception as e:
+
+            #     log.error(f"Exception: {e}")
+            #     result = e
 
             finally:
                 Path(f.name).unlink()
@@ -159,11 +157,7 @@ class MPRemote2:
     def copy_cell_to_mcu(self, cell, *, filename: str):
         """copy cell to a file to the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(
-                "# Jupyter cell\n"
-            )  # add a line to replace the cell magic to keep the line numbers aligned
-            f.write(cell)
-            f.close()
+            self._cell_to_file(f, cell)
             # copy the file to the device
             copy_cmd = ["cp", f.name, f":{filename}"]
             # TODO: detect / retry / report errors copying the file
@@ -171,6 +165,13 @@ class MPRemote2:
             # log.info(_)
             # log.info(f.name, "copied to device")
             Path(f.name).unlink()
+
+    def _cell_to_file(self, f, cell):
+        """Copy cell to a file, and close the file"""
+        f.write("# Jupyter cell\n")
+        f.write(cell)
+        f.close()
+        log.trace(f"copied cell to {f.name}")
 
     def cell_from_mcu_file(self, filename):
         """read a file from the device and return the contents"""

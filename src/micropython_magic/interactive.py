@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -12,8 +13,10 @@ from IPython.core.interactiveshell import InteractiveShell
 from IPython.utils.text import SList
 from loguru import logger as log
 
-TIMEOUT = 300
+from .logger import MCUException
 from .memoryinfo import RE_ALL
+
+TIMEOUT = 300
 
 
 @dataclass
@@ -23,15 +26,56 @@ class LogTags:
     warning_tags: List[str]
     success_tags: List[str]
     ignore_tags: List[str]
+    trace_tags: List[str]
+    trace_res: List[str]
 
 
 DEFAULT_LOG_TAGS = LogTags(
     reset_tags=["rst cause:1, boot mode:"],
-    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  # "Traceback ",
+    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  #
     warning_tags=["WARNING:", "WARN  :"],
     success_tags=["SUCCESS", "SUCCESS~"],
-    ignore_tags=['  File "<stdin>",'],
+    ignore_tags=[],
+    trace_tags=["Traceback (most recent call last)", '   File "<stdin>", '],
+    trace_res=[r"\s+File \"[\w<>.]+\", line \d+, in .*"],
 )
+
+
+# todo : pass in the to detect in the output
+def do_output(output: str, tags: LogTags, log_errors=True, hide_meminfo=False) -> bool:
+    """Assess a line of output, return True if the output should be displayed"""
+    # detect board reset
+    if any(tag in output for tag in tags.reset_tags):
+        raise RuntimeError(f"Board reset detected : {output}")
+    # detect errors
+    if log_errors and any(tag in output for tag in tags.error_tags):
+        # just log the error , rather than trying to re-raise the MCU exception
+        log.error(output)
+        raise MCUException(output)
+        # try:
+        #     raise MCUException() from eval(output)
+        # except Exception:
+        #     raise MCUException(output)
+        # return False
+    # detect tracebacks
+    if any(tag in output for tag in tags.trace_tags) or any(
+        re.match(rx, output) for rx in tags.trace_res
+    ):
+        log.warning(output.rstrip())
+        return False
+    # detect warnings
+    if any(tag in output for tag in tags.warning_tags):
+        log.warning(output)
+    # detect success
+    if any(tag in output for tag in tags.success_tags):
+        log.success(output)
+    # ignore some tags
+    if any(tag in output for tag in tags.ignore_tags):
+        return False
+    # do not output the line that matched a meminfo regex
+    if hide_meminfo and output and any(rx.match(output) for rx in RE_ALL):
+        return False
+    return True
 
 
 def ipython_run(
@@ -74,27 +118,6 @@ def ipython_run(
     all_out = []
     output = ""
 
-    def do_output(output) -> bool:
-        # detect board reset
-        if any(tag in output for tag in tags.reset_tags):
-            raise RuntimeError(f"Board reset detected : {output}")
-        # detect errors
-        if log_errors and any(tag in output for tag in tags.error_tags):
-            log.error(output)
-        # detect warnings
-        if any(tag in output for tag in tags.warning_tags):
-            log.warning(output)
-        # detect success
-        if any(tag in output for tag in tags.success_tags):
-            log.success(output)
-        # ignore some tags
-        if any(tag in output for tag in tags.ignore_tags):
-            return False
-        # do not output the line that matched a meminfo regex
-        if hide_meminfo and output and any(re.match(output) for re in RE_ALL):
-            return False
-        return True
-
     log.debug(f"{'line' if line_based else 'char'} based, with timeout of {timeout} seconds")
     assert isinstance(cmd, list)
     try:
@@ -126,15 +149,18 @@ def ipython_run(
         while forever or (process_timer and process_timer.is_alive()):
             if line_based:
                 # TODO: Ctrl-C / KeyboardInterrupt is only detected at line-end (after \n)
-                output = process.stdout.readline()
-                output = output.decode("utf-8", errors="ignore")
-                if not do_output(output):
+                output_b = process.stdout.readline()
+                output = output_b.decode("utf-8", errors="ignore")
+                if "no device found" in output:
+                    raise ConnectionError(output.strip())
+                log.trace(f"output: {output}")
+                if not do_output(output, tags, log_errors=log_errors, hide_meminfo=hide_meminfo):
                     continue
 
             else:
-                output = process.stdout.read(1)
-                output = output.decode("utf-8", errors="ignore")
+                output_b = process.stdout.read(1)
                 # ToDo # swallow the output if it matches a regex
+                output = output_b.decode("utf-8", errors="ignore")
 
             if output == "" and process.poll() is not None:
                 # process has finished, read the rest of the output before breaking out of the loop
@@ -170,9 +196,14 @@ def ipython_run(
             if process_timer:
                 process_timer.cancel()
             if output:
-                do_output(output)
+                do_output(output, tags, log_errors=log_errors, hide_meminfo=hide_meminfo)
+    except MCUException as mcu_e:
+        log.trace("re-raise MCUException")
+        raise mcu_e
 
     finally:
+        log.trace("Finally in ipython_run")
+
         # ignore unraisable exceptions
         def unraisable_hook(unraisable):
             # this is very crude , but seems to be the only way
@@ -187,8 +218,8 @@ def ipython_run(
                     log.warning(line)
             if not interupted and process_timer and process_timer.is_alive():
                 process_timer.cancel()
-        except Exception:
-            pass
+        except Exception as e:
+            log.trace(e)
 
         # TODO: interrupt the script running on the MCU
         # if interupted:

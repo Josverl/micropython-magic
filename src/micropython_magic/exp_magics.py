@@ -38,7 +38,7 @@ from IPython.display import display
 from IPython.utils.text import LSString, SList
 from loguru import logger as log
 
-from micropython_magic.octarine import MicroPythonMagic, PrettyOutput
+from micropython_magic.octarine import MicroPythonMagic
 
 
 @magics_class

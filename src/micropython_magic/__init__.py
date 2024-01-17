@@ -6,8 +6,12 @@ __author__ = "Jos Verlinde"
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
 
+from .logger import patch_MCUlog, set_log_level
 from .magic_transformer import comment_magic_transformer
 from .octarine import MicroPythonMagic
+
+set_log_level("WARNING")
+log.patch(patch_MCUlog)
 
 # from .exp_magics import ExpMagics
 

@@ -28,9 +28,9 @@ def test_value_retained(tb):
 def test_value_cleared(tb):
     cellnum = 5
     output = tb.cells[cellnum]["outputs"][-1]
-    assert "error" in output["output_type"]
+    assert "error" == output["output_type"]
     assert "NameError" in output["evalue"]
-    # assert "foo" in output["evalue"]
+    assert "foo" in output["evalue"]
 
 
 def test_notebook_ran_ok(tb: TestbookNotebookClient):
