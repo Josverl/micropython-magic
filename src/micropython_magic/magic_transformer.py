@@ -16,7 +16,7 @@ def comment_magic_transformer(lines: List[str]):
     """
     Transforms a cell with a commented cell magic into a cell without the comment, but with the %%celmagic.
     """
-    if not isinstance(lines, list):
+    if not isinstance(lines, list): # pragma: no cover
         return
     if  "%%" not in lines[0]:
         return lines

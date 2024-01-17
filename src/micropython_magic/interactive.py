@@ -128,7 +128,7 @@ def ipython_run(
             stderr=subprocess.PIPE,
             start_new_session=False,
         )  # ,  universal_newlines=True)
-    except FileNotFoundError as e:
+    except FileNotFoundError as e:  # pragma: no cover
         raise FileNotFoundError(f"Failed to start {cmd[0]}") from e
 
     assert process.stdout is not None
@@ -181,7 +181,7 @@ def ipython_run(
             ipy.displayhook.fill_exec_result(all_out)
             ipy.displayhook.update_user_ns(all_out)
         return all_out
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover
         # if the user presses ctrl-c or stops the cell,
         # kill the process and raise a keyboard interrupt
         with contextlib.suppress(KeyboardInterrupt):
@@ -205,9 +205,10 @@ def ipython_run(
         log.trace("Finally in ipython_run")
 
         # ignore unraisable exceptions
-        def unraisable_hook(unraisable):
-            # this is very crude , but seems to be the only way
+        def unraisable_hook(unraisable):  # pragma: no cover
+            # this is a bit crude, but seems to be the only way
             # to catch both  weakref deletions and keyboard interrupts
+            # https://docs.python.org/3/library/sys.html?highlight=unraisable#sys.unraisablehook
             return
 
         sys.unraisablehook = unraisable_hook

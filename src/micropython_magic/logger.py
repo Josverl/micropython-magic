@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger as log
 
-if TYPE_CHECKING:
+if TYPE_CHECKING: # pragma: no cover
     from loguru import Record
 
 

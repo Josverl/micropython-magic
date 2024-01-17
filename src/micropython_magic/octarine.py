@@ -18,7 +18,7 @@ from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
 from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
-from IPython.utils.text import LSString, SList
+from IPython.utils.text import SList
 from loguru import logger as log  # type: ignore
 from traitlets import Float as Float_
 from traitlets import UseEnum, observe
@@ -126,7 +126,9 @@ class MicroPythonMagic(Magics):
     )
     #
     @argument_group("Devices")
-    @argument("--select", nargs="+", help="serial port to connect to", metavar="PORT")
+    @argument(
+        "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
+    )
     @argument(
         "--reset", "--soft-reset", action="store_true", help="Reset device (before running cell)."
     )
@@ -192,14 +194,19 @@ class MicroPythonMagic(Magics):
     @line_magic("micropython")
     @line_magic("mpy")
     @magic_arguments("mpy")
+    #
     @argument_group("Code execution")
     @argument("statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)")
     @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
     @argument("--timeout", default=-1, help="maximum timeout for the cell to run")
     @argument("--stream", action="store_true", help="stream each line of output as it is received")
+    #
     @argument_group("Devices")
     @argument("--list", "--devs", "-l", action="store_true", help="List available devices.")
-    @argument("--select", "-s", nargs="+", help="serial port to connect to", metavar="PORT")
+    @argument(
+        "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
+    )
+    @argument("--verify", action="store_true", help="verify that the device can be connected to")
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
     @argument("--info", action="store_true", help="get boardinfo from device")
@@ -235,7 +242,7 @@ class MicroPythonMagic(Magics):
                 log.warning(f"{args.select=} for multiple MCUs not yet implemented")
                 return
             else:
-                self.select(args.select[0])
+                self.select(args.select[0], verify=args.verify)
         if args.hard_reset:
             self.hard_reset()
         elif args.reset:
@@ -273,17 +280,14 @@ class MicroPythonMagic(Magics):
         Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
         """
         cmd = ["mpremote", "connect", "list"]
-        # output = self.shell.getoutput(cmd)
-        output = self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
-        return output
+        return self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
 
-    def select(self, port: Optional[str]):
+    def select(self, port: Optional[str], verify: bool = False):
         """
         Select the device to connect to by specifying the serial port name.
         """
         device = port.strip() if port else "auto"
-        output = self.MCU.select_device(device)
-        return output
+        return self.MCU.select_device(device, verify=verify)
 
     def eval(self, line: str):
         """
@@ -302,7 +306,6 @@ class MicroPythonMagic(Magics):
         )
         cmd = [
             "exec",
-            # f'''"import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"''',
             f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
         ]
         log.trace(repr(cmd))
