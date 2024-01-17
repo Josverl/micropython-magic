@@ -11,6 +11,21 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Debug Unit Test",
+            "type": "python",
+            "request": "launch",
+            "justMyCode": false,
+            "program": "${file}",
+            "purpose": [
+                "debug-test"
+            ],
+            "console": "integratedTerminal",
+            "env": {
+                // disable code coverage to allow breakpoints for debugging
+                "PYTEST_ADDOPTS": "--no-cov"
+            },
         }
     ]
 }
