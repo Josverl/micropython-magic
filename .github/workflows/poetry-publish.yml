@@ -28,5 +28,5 @@ jobs:
         uses: JRubics/poetry-publish@v1.16
         with:
           pypi_token: "${{ steps.mint.outputs.api-token }}"
-          repository_username: "__token__"
-          repository_password: "${{ steps.mint.outputs.api-token }}"
+          # repository_username: "__token__"
+          # repository_password: "${{ steps.mint.outputs.api-token }}"
