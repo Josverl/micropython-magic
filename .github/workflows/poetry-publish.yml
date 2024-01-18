@@ -15,11 +15,18 @@ jobs:
     # environment: release    
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write    
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v3
+
+      - name: Mint token
+        id: mint
+        uses: tschm/token-mint-action@v1.0.2
+
       - name: Build and publish to pypi
         uses: JRubics/poetry-publish@v1.16
         with:
           repository_name: "testpypi"
           repository_url: "https://test.pypi.org/legacy/"
+          pypi_token: ${{ steps.mint.outputs.api-token }}
