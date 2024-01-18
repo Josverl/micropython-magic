@@ -4,13 +4,13 @@ on:
     tags:
       - "v*.*.*-*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to publish"
-        required: true
-        default: "v*.*.*-*"
+    # inputs:
+    #   tag:
+    #     description: "Tag to publish"
+    #     required: true
+    #     default: "v*.*.*-*"
 jobs:
-  publish_testpypi:
+  publish_pypi:
     runs-on: ubuntu-latest
     # environment: release    
     permissions:
@@ -27,6 +27,4 @@ jobs:
       - name: Build and publish to pypi
         uses: JRubics/poetry-publish@v1.16
         with:
-          repository_name: "testpypi"
-          repository_url: "https://test.pypi.org/legacy/"
-          pypi_token: '${{ steps.mint.outputs.api-token }}'
+          pypi_token: ${{ steps.mint.outputs.api-token }}
