@@ -29,4 +29,4 @@ jobs:
         with:
           repository_name: "testpypi"
           repository_url: "https://test.pypi.org/legacy/"
-          pypi_token: ${{ steps.mint.outputs.api-token }}
+          pypi_token: '${{ steps.mint.outputs.api-token }}'
