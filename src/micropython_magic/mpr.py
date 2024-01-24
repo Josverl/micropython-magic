@@ -14,15 +14,21 @@ from loguru import logger as log
 from micropython_magic.logger import MCUException
 from micropython_magic.script_access import path_for_script
 
-from .interactive import ipython_run
+from .interactive import TIMEOUT, ipython_run
 
 JSON_START = "<json~"
 JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
 
-import os
 
-from .interactive import TIMEOUT
+class MCUInfo(dict):
+    """A dict with MCU firmware attributes"""
+
+    def __getattr__(self, name):
+        return self[name]
+
+    def __setattr__(self, name, value):
+        self[name] = value
 
 
 class MPRemote2:
@@ -80,7 +86,6 @@ class MPRemote2:
                 timeout=timeout or self.timeout,
                 follow=follow,
             )
-
 
     def select_device(self, port: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
@@ -209,6 +214,6 @@ class MPRemote2:
         if out := self.run_cmd(cmd, stream_out=False, timeout=timeout):
             if not out[0].startswith("{"):
                 return out
-            fw_info = eval(out[0])
-            fw_info["serial_port"] = self.port
+            fw_info = MCUInfo(eval(out[0]))
+            fw_info.serial_port = self.port
         return fw_info
