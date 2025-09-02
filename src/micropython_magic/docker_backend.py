@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 from typing import List, Optional, Union
 
-import docker
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
 
@@ -21,6 +20,14 @@ from micropython_magic.interactive import TIMEOUT
 JSON_START = "<json~"
 JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
+
+# Check if Docker is available
+try:
+    import docker
+    DOCKER_AVAILABLE = True
+except ImportError:
+    docker = None
+    DOCKER_AVAILABLE = False
 
 
 class DockerMicroPython:
@@ -32,6 +39,9 @@ class DockerMicroPython:
         image: str = "micropython/unix:latest",
         container_name: Optional[str] = None,
     ):
+        if not DOCKER_AVAILABLE:
+            raise ImportError("Docker backend requires 'docker' package. Install with: pip install docker")
+            
         self.shell = shell
         self.image = image
         # Use a fixed container name for persistence across magic instances

@@ -61,6 +61,48 @@ For the source please refer to the samples folder
 Recommended : install stubs for your MCU of choice
 - [ ] Install stubs for MicroPython syntax checking `pip install micropython-rp2-stubs` (or your port of choise)
 
+### Docker Backend Support (New!)
+
+**For users without physical hardware**, micropython-magic now supports running MicroPython code in Docker containers:
+
+```bash
+# Install Docker support
+pip install -U "micropython-magic[widgets]" docker
+
+# Ensure Docker is running
+docker --version
+```
+
+Use the Docker backend in your notebooks:
+```python
+# Load the extension
+%load_ext micropython_magic
+
+# Run MicroPython in Docker instead of physical hardware
+%%micropython --backend docker
+print("Hello from MicroPython in Docker!")
+import sys
+print(f"Running: {sys.version}")
+```
+
+**Benefits of Docker Backend:**
+- ✅ **No hardware required** - Perfect for learning and development
+- ✅ **Consistent environment** - Same MicroPython version across machines  
+- ✅ **Easy setup** - Just requires Docker installation
+- ✅ **CI/CD friendly** - Can be used in automated testing
+- ✅ **Safe experimentation** - No risk of damaging hardware
+
+**Limitations:**
+- ❌ No GPIO/hardware access (no `machine` module functionality)
+- ❌ No hardware-specific features (WiFi, sensors, etc.)
+- ℹ️ Variables don't persist between cells (each execution is independent)
+
+The Docker backend uses the official `micropython/unix:latest` image and is ideal for:
+- Learning MicroPython syntax and concepts
+- Algorithm development and testing  
+- Code validation before deployment to hardware
+- Educational environments and workshops
+
 ## Usage
 
 **1) Create a notebook**
@@ -113,6 +155,7 @@ Please refer to the [samples folder](samples/) for more examples
 1. [board_control](samples/board_control.ipynb) - basic board control
 1. [board_selection.](samples/board_selection.ipynb) - list connected boards and loop through them
 1. [device_info](samples/device_info.ipynb) - Get simple access to port, board and hardware and firmware information
+1. [**Docker Backend Demo**](samples/docker_backend_demo.ipynb) - 🆕 Run MicroPython in Docker containers (no hardware required)
 1. [WOKWI](samples/wokwi.ipynb) - Use MicroPython magic with WOKWI as a simulator (no device needed)
 1. [Plot rp2 CPU temp](samples/plot_cpu_temp_rp2.ipynb) - create a plot of the CPU temperature of a rp2040 MCU(bqplot)
 1. [Display Memory Map](samples/mem_info.ipynb) - Micropython memory map visualizer
