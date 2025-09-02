@@ -19,7 +19,7 @@ include = []
 exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 mpremote = "^1.22.0"
 mpflash = "^1.26.0"
 loguru = "^0.7.2"
