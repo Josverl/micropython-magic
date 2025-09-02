@@ -1,20 +1,20 @@
-""" Micropython Remote (MPR) magic for Jupyter Notebooks
+""" Micropython Remote (MPR) magic for Jupyter Notebooks - Updated to use MPRemoteBoard
 """
 
 import contextlib
 import json
-import sys
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Union
 
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
+from mpflash.mpremoteboard import MPRemoteBoard
 
 from micropython_magic.logger import MCUException
 from micropython_magic.script_access import path_for_script
 
-from .interactive import TIMEOUT, ipython_run
+from .interactive import TIMEOUT
 
 JSON_START = "<json~"
 JSON_END = "~json>"
@@ -32,6 +32,8 @@ class MCUInfo(dict):
 
 
 class MPRemote2:
+    """Compatibility wrapper around MPRemoteBoard to maintain existing interface"""
+    
     def __init__(
         self,
         shell: InteractiveShell,
@@ -42,11 +44,22 @@ class MPRemote2:
         self.port: str = port  # by default connect to the first device
         self.resume = resume  # by default resume the device to maintain state
         self.timeout = TIMEOUT
-
+        
+        # Initialize MPRemoteBoard with the specified port
+        if port == "auto" or not port:
+            # Get first available port
+            available_ports = MPRemoteBoard.connected_boards()
+            actual_port = available_ports[0] if available_ports else ""
+        else:
+            actual_port = port
+            
+        self._board = MPRemoteBoard(serialport=actual_port)
+        
     @property
     def cmd_prefix(self) -> List[str]:
         """mpremote command prefix including port and resume according to options"""
-        prefix = [sys.executable, "-m", "mpremote"] + self.connect_to
+        # This property is kept for compatibility but not used in new implementation
+        prefix = ["python", "-m", "mpremote"] + self.connect_to
         if self.resume:
             prefix.append("resume")
         return prefix
@@ -71,36 +84,57 @@ class MPRemote2:
     ):
         """run a command on the device and return the output"""
         assert isinstance(cmd, list)
-        if auto_connect:
-            cmd = self.cmd_prefix + cmd
-            # if isinstance(cmd, str):
-            #     cmd = f"""{self.cmd_prefix} {cmd}"""
-            # else:
-            #     log.warning(f"cmd is not a string: {cmd}")
-        with log.contextualize(port=self.port):
-            log.debug(cmd)
-            return ipython_run(
+        
+        try:
+            # Use MPRemoteBoard's run_command method
+            rc, result = self._board.run_command(
                 cmd,
-                stream_out=stream_out,
-                shell=shell,
-                timeout=timeout or self.timeout,
-                follow=follow,
+                timeout=int(timeout or self.timeout),
+                resume=self.resume if auto_connect else False,
             )
+            
+            if rc != 0:
+                raise MCUException(f"Command failed with code {rc}: {' '.join(result) if result else 'Unknown error'}")
+                
+            return result
+            
+        except Exception as e:
+            log.error(f"Error running command {cmd}: {e}")
+            raise MCUException(str(e)) from e
 
     def select_device(self, port: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
         _port = port.strip() if port else "auto"
+        
         if not verify:
             self.port = _port
+            # Update the underlying board object
+            if _port == "auto" or not _port:
+                available_ports = MPRemoteBoard.connected_boards()
+                actual_port = available_ports[0] if available_ports else ""
+            else:
+                actual_port = _port
+            self._board = MPRemoteBoard(serialport=actual_port)
             return _port
-        # cmd = f"""eval \"'{_port}'\""""
-        cmd = ["eval", f"\"'{_port}'\""]
+            
         try:
-            output = self.run_cmd(cmd)
+            # Try to connect and verify
+            if _port == "auto" or not _port:
+                available_ports = MPRemoteBoard.connected_boards()
+                actual_port = available_ports[0] if available_ports else ""
+            else:
+                actual_port = _port
+                
+            test_board = MPRemoteBoard(serialport=actual_port)
+            test_board.get_mcu_info()
+            
+            # If successful, update our board
             self.port = _port
+            self._board = test_board
+            return f"Connected to {actual_port}"
+            
         except Exception as e:
-            output = e
-        return output
+            return f"Failed to connect: {e}"
 
     def run_cell(
         self,
@@ -111,37 +145,32 @@ class MPRemote2:
         mount: Optional[str] = None,
     ):
         """run a codeblock on the device and return the output"""
-        """copy cell to a file and run it on the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             self._cell_to_file(f, cell)
-            # copy the file to the device
-            run_cmd = ["run", f.name]  # TODO: may need to add quotes around f.name
-            if mount:
-                # prefix the run command with a mount command
-                # run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
-                run_cmd = ["mount", mount] + run_cmd
-
-            # TODO: detect / retry / report errors copying the file
-            log.trace(f"running {run_cmd}")
+            
             try:
-                result = self.run_cmd(
+                # Prepare run command
+                run_cmd = ["run", f.name]
+                if mount:
+                    run_cmd = ["mount", mount] + run_cmd
+
+                log.trace(f"running {run_cmd}")
+                rc, result = self._board.run_command(
                     run_cmd,
-                    stream_out=True,
-                    timeout=timeout,
-                    follow=follow,
+                    timeout=int(timeout),
+                    resume=self.resume,
                 )
+
+                if rc != 0:
+                    error_msg = "\n".join(result) if result else "Unknown error"
+                    raise MCUException(f"Cell execution failed: {error_msg}")
+
                 if result:
                     log.debug(f"result: {result}")
-            except (MCUException, ConnectionError) as e:
-                raise e
-            # except Exception as e:
-
-            #     log.error(f"Exception: {e}")
-            #     result = e
-
+                return result
+                
             finally:
                 Path(f.name).unlink()
-        return result
 
     def run_mcu_file(
         self,
@@ -155,21 +184,37 @@ class MPRemote2:
         """run a file on the device and return the output"""
         exec_cmd = []
         if mount:
-            exec_cmd = ["mount" + f'"{mount}"']
-        exec_cmd += ["exec", f"\"exec( open('{filename}').read() , globals() )\""]
-        return self.run_cmd(exec_cmd, stream_out=stream_out, timeout=timeout, follow=follow)
+            exec_cmd = ["mount", mount]
+        exec_cmd += ["exec", f"exec(open('{filename}').read(), globals())"]
+        
+        rc, result = self._board.run_command(
+            exec_cmd, 
+            timeout=int(timeout or self.timeout),
+            resume=self.resume,
+        )
+        
+        if rc != 0:
+            error_msg = "\n".join(result) if result else "Unknown error"
+            raise MCUException(f"File execution failed: {error_msg}")
+            
+        return result
 
     def copy_cell_to_mcu(self, cell, *, filename: str):
         """copy cell to a file to the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             self._cell_to_file(f, cell)
-            # copy the file to the device
-            copy_cmd = ["cp", f.name, f":{filename}"]
-            # TODO: detect / retry / report errors copying the file
-            _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
-            # log.info(_)
-            # log.info(f.name, "copied to device")
-            Path(f.name).unlink()
+            
+            try:
+                # copy the file to the device
+                copy_cmd = ["cp", f.name, f":{filename}"]
+                rc, result = self._board.run_command(copy_cmd, timeout=60, resume=self.resume)
+                
+                if rc != 0:
+                    error_msg = "\n".join(result) if result else "Unknown error"
+                    raise MCUException(f"Failed to copy file: {error_msg}")
+                    
+            finally:
+                Path(f.name).unlink()
 
     def _cell_to_file(self, f, cell):
         """Copy cell to a file, and close the file"""
@@ -181,12 +226,19 @@ class MPRemote2:
     def cell_from_mcu_file(self, filename):
         """read a file from the device and return the contents"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            # copy_cmd = f"cp :{filename} {f.name}"
-            copy_cmd = ["cp", f":{filename}", f.name]
-            # TODO: detect / retry / report errors copying the file
-            _ = self.run_cmd(copy_cmd, stream_out=False, timeout=60)
-
-            return Path(f.name).read_text()
+            try:
+                copy_cmd = ["cp", f":{filename}", f.name]
+                rc, result = self._board.run_command(copy_cmd, timeout=60, resume=self.resume)
+                
+                if rc != 0:
+                    error_msg = "\n".join(result) if result else "Unknown error"
+                    raise MCUException(f"Failed to read file: {error_msg}")
+                    
+                return Path(f.name).read_text()
+                
+            finally:
+                if Path(f.name).exists():
+                    Path(f.name).unlink()
 
     @staticmethod
     def load_json_from_MCU(line: str):
@@ -199,21 +251,54 @@ class MPRemote2:
                 return None
             try:
                 result = json.loads(line)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 with contextlib.suppress(Exception):
                     result = eval(line)
-            except Exception as e:
+            except Exception:
                 # result = None
                 pass
         return result
 
     def get_fw_info(self, timeout: float):
-        fw_info = {}
-        #  load datafile from installed package
-        cmd = ["run", str(path_for_script("fw_info.py"))]
-        if out := self.run_cmd(cmd, stream_out=False, timeout=timeout):
-            if not out[0].startswith("{"):
-                return out
-            fw_info = MCUInfo(eval(out[0]))
+        """Get firmware information from the MCU"""
+        try:
+            # Use MPRemoteBoard's built-in info gathering
+            self._board.get_mcu_info(timeout=int(timeout))
+            
+            # Convert MPRemoteBoard info to the expected format
+            fw_info = MCUInfo({
+                'family': self._board.family,
+                'version': self._board.version,
+                'build': self._board.build,
+                'port': self._board.port,
+                'cpu': self._board.cpu,
+                'arch': self._board.arch,
+                'mpy': self._board.mpy,
+                'description': self._board.description,
+                'board': self._board.board,
+                'board_id': self._board.board_id,
+                'variant': self._board.variant,
+            })
             fw_info.serial_port = self.port
-        return fw_info
+            return fw_info
+            
+        except Exception as e:
+            log.error(f"Failed to get firmware info: {e}")
+            # Fallback to script-based approach
+            try:
+                cmd = ["run", str(path_for_script("fw_info.py"))]
+                rc, result = self._board.run_command(cmd, timeout=int(timeout), resume=False)
+                
+                if rc != 0 or not result:
+                    return {}
+                    
+                if not result[0].startswith("{"):
+                    return result
+                    
+                fw_info = MCUInfo(eval(result[0]))
+                fw_info.serial_port = self.port
+                return fw_info
+                
+            except Exception as e2:
+                log.error(f"Fallback firmware info failed: {e2}")
+                return {}

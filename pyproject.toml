@@ -19,8 +19,9 @@ include = []
 exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-mpremote = "^1.22.0"
+python = "^3.9"
+mpremote = "1.25.0"
+mpflash = "^1.26.0"
 loguru = "^0.7.2"
 ipympl = "^0.9.3"
 
@@ -105,3 +106,6 @@ output = "coverage/coverage.json"
 
 [tool.coverage.lcov]
 output = "coverage/coverage.lcov"
+
+[tool.poetry.scripts]
+micropython-magic = "micropython_magic.cli:main"
