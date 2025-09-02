@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from micropython_magic.cli import enable_startup, disable_startup, STARTUP_TEMPLATE
+from micropython_magic.cli import STARTUP_TEMPLATE, disable_startup, enable_startup
 
 
 def test_enable_creates_file(tmp_path):
