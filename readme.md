@@ -137,6 +137,24 @@ In order to automatically load the magic on startup, you can add the following t
         'micropython_magic'
     ]
     ```
+
+Alternatively, the package provides a small console script to create an IPython startup file that will load `micropython_magic` automatically for a given profile. After you have installed the package you can run:
+
+```bash
+# install then enable (one-liner)
+# pip install -U micropython-magic
+micropython-magic enable
+
+# or when using poetry
+poetry run micropython-magic enable
+
+# to remove the startup file
+micropython-magic disable
+```
+
+By default the command writes `00-micropython_magic.py` into `~/.ipython/profile_default/startup/` but you can change the profile or filename using `--profile` and `--filename` or force an overwrite using `--force`.
+
+
 ## Configuration options
 
 Configuration can be done via the `%config` magic

@@ -106,3 +106,6 @@ output = "coverage/coverage.json"
 
 [tool.coverage.lcov]
 output = "coverage/coverage.lcov"
+
+[tool.poetry.scripts]
+micropython-magic = "micropython_magic.cli:main"
