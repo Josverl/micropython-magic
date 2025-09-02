@@ -160,11 +160,11 @@ class MPRemote2:
                     timeout=int(timeout),
                     resume=self.resume,
                 )
-                
+
                 if rc != 0:
                     error_msg = "\n".join(result) if result else "Unknown error"
                     raise MCUException(f"Cell execution failed: {error_msg}")
-                    
+
                 if result:
                     log.debug(f"result: {result}")
                 return result
@@ -251,10 +251,10 @@ class MPRemote2:
                 return None
             try:
                 result = json.loads(line)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 with contextlib.suppress(Exception):
                     result = eval(line)
-            except Exception as e:
+            except Exception:
                 # result = None
                 pass
         return result

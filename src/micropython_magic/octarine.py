@@ -16,8 +16,19 @@ import traitlets
 from IPython.core.error import UsageError
 from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
-from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
+from IPython.core.magic import (
+    Magics,
+    cell_magic,
+    line_magic,
+    magics_class,
+    output_can_be_silenced,
+)
+from IPython.core.magic_arguments import (
+    argument,
+    argument_group,
+    magic_arguments,
+    parse_argstring,
+)
 from IPython.utils.text import SList
 from loguru import logger as log  # type: ignore
 from traitlets import Float as Float_
@@ -86,6 +97,7 @@ class MicroPythonMagic(Magics):
 
     @cell_magic("micropython")
     @cell_magic("mpy")
+    @output_can_be_silenced
     @magic_arguments("%micropython")  # add additional % to display two %% in help
     #
     @argument_group("Mount")
@@ -137,7 +149,14 @@ class MicroPythonMagic(Magics):
         """
         Run Micropython code on an attached device using mpremote.
         """
-        args = parse_argstring(self.micropython, line or "")
+        # Detect and strip a trailing semicolon used to silence output before argparse sees it
+        _line = (line or "")
+        silence = False
+        if _line.rstrip().endswith(";"):
+            silence = True
+            _line = re.sub(r"\s*;\s*$", "", _line)
+
+        args = parse_argstring(self.micropython, _line)
 
         if args.timeout == -1:
             args.timeout = self.timeout
@@ -151,7 +170,7 @@ class MicroPythonMagic(Magics):
             else:
                 self.select(args.select[0])
 
-        if line:
+        if _line:
             log.debug(f"{args=}")
         # pre processing - these can be combined with the main processing
 
@@ -186,6 +205,20 @@ class MicroPythonMagic(Magics):
         output = self.MCU.run_cell(
             cell, timeout=args.timeout, follow=args.follow, mount=args.mount
         )
+        # Ensure output from the MCU is displayed in the notebook as stdout
+        if silence:
+            return None
+        if output is None:
+            return None
+        if isinstance(output, list):
+            if output:
+                print("\n".join(output))
+            return None
+        try:
+            if output:
+                print(output)
+        finally:
+            return None
 
     # -------------------------------------------------------------------------
     # line magics
@@ -218,7 +251,12 @@ class MicroPythonMagic(Magics):
 
         - can be silenced with a trailing semicolon when used as a line magic
         """
-        args = parse_argstring(self.mpy_line, line or "")
+        # Strip trailing semicolon so argparse doesn't choke; output_can_be_silenced handles silence
+        _line = (line or "")
+        if _line.rstrip().endswith(";"):
+            _line = re.sub(r"\s*;\s*$", "", _line)
+
+        args = parse_argstring(self.mpy_line, _line)
         if args.timeout == -1:
             args.timeout = self.timeout
         if not isinstance(args.timeout, float):
@@ -234,7 +272,7 @@ class MicroPythonMagic(Magics):
         if args.hard_reset:  # avoid double resets
             args.reset = False
         #
-        if line:
+        if _line:
             log.debug(f"{args=}")
         # pre processing - these can be combined with the main processing
         if args.select:
@@ -279,8 +317,9 @@ class MicroPythonMagic(Magics):
         """
         Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
         """
-        cmd = ["mpremote", "connect", "list"]
-        return self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
+        # TODO: use the mpflash filtered list instead 
+        cmd = ["connect", "list"]
+        return SList(self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False))
 
     def select(self, port: Optional[str], verify: bool = False):
         """
@@ -301,9 +340,6 @@ class MicroPythonMagic(Magics):
         """
         # Assemble the command to run
         statement = line.strip()
-        cmd_old = (
-            f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
-        )
         cmd = [
             "exec",
             f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
@@ -327,8 +363,7 @@ class MicroPythonMagic(Magics):
         """
         Perform a soft-reset on the current Micropython device.
         """
-        # Append an eval statement to avoid ending up in the repl
-        output = self.MCU.run_cmd(["soft-reset", "eval", "True"])
+        output = self.MCU.run_cmd(["soft-reset"])
         self.output = output
         return output
 
