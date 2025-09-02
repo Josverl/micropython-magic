@@ -20,6 +20,15 @@ JSON_START = "<json~"
 JSON_END = "~json>"
 DONT_KNOW = "<~?~>"
 
+# Import Docker backend with graceful fallback
+try:
+    from .docker_backend import DockerMicroPython
+    DOCKER_AVAILABLE = True
+except ImportError as e:
+    log.debug(f"Docker backend not available: {e}")
+    DockerMicroPython = None
+    DOCKER_AVAILABLE = False
+
 
 class MCUInfo(dict):
     """A dict with MCU firmware attributes"""
@@ -37,11 +46,27 @@ class MPRemote2:
         shell: InteractiveShell,
         port: str = "auto",
         resume: bool = True,
+        backend: str = "serial",
+        docker_image: str = "micropython/unix:latest",
     ):
         self.shell: InteractiveShell = shell
         self.port: str = port  # by default connect to the first device
         self.resume = resume  # by default resume the device to maintain state
+        self.backend = backend  # "serial" or "docker"
+        self.docker_image = docker_image
         self.timeout = TIMEOUT
+        
+        # Initialize backend
+        self._docker_backend = None
+        if self.backend == "docker":
+            if not DOCKER_AVAILABLE:
+                raise ImportError("Docker backend requested but docker package not available. Install with: pip install docker")
+            self._docker_backend = DockerMicroPython(shell, image=docker_image)
+    
+    @property
+    def is_docker_backend(self) -> bool:
+        """Check if using Docker backend."""
+        return self.backend == "docker"
 
     @property
     def cmd_prefix(self) -> List[str]:
@@ -71,12 +96,21 @@ class MPRemote2:
     ):
         """run a command on the device and return the output"""
         assert isinstance(cmd, list)
+        
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.run_cmd(
+                cmd,
+                auto_connect=auto_connect,
+                stream_out=stream_out,
+                shell=shell,
+                timeout=timeout,
+                follow=follow,
+            )
+        
+        # Original serial implementation
         if auto_connect:
             cmd = self.cmd_prefix + cmd
-            # if isinstance(cmd, str):
-            #     cmd = f"""{self.cmd_prefix} {cmd}"""
-            # else:
-            #     log.warning(f"cmd is not a string: {cmd}")
         with log.contextualize(port=self.port):
             log.debug(cmd)
             return ipython_run(
@@ -89,6 +123,12 @@ class MPRemote2:
 
     def select_device(self, port: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
+        
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.select_device(port, verify)
+        
+        # Original serial implementation
         _port = port.strip() if port else "auto"
         if not verify:
             self.port = _port
@@ -111,6 +151,17 @@ class MPRemote2:
         mount: Optional[str] = None,
     ):
         """run a codeblock on the device and return the output"""
+        
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.run_cell(
+                cell,
+                timeout=timeout,
+                follow=follow,
+                mount=mount,
+            )
+        
+        # Original serial implementation
         """copy cell to a file and run it on the MCU"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             self._cell_to_file(f, cell)
@@ -161,6 +212,12 @@ class MPRemote2:
 
     def copy_cell_to_mcu(self, cell, *, filename: str):
         """copy cell to a file to the MCU"""
+        
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.copy_cell_to_mcu(cell, filename=filename)
+        
+        # Original serial implementation
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             self._cell_to_file(f, cell)
             # copy the file to the device
@@ -180,6 +237,12 @@ class MPRemote2:
 
     def cell_from_mcu_file(self, filename):
         """read a file from the device and return the contents"""
+        
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.cell_from_mcu_file(filename)
+        
+        # Original serial implementation
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             # copy_cmd = f"cp :{filename} {f.name}"
             copy_cmd = ["cp", f":{filename}", f.name]
@@ -208,6 +271,11 @@ class MPRemote2:
         return result
 
     def get_fw_info(self, timeout: float):
+        # Route to appropriate backend
+        if self.is_docker_backend:
+            return self._docker_backend.get_fw_info(timeout)
+        
+        # Original serial implementation
         fw_info = {}
         #  load datafile from installed package
         cmd = ["run", str(path_for_script("fw_info.py"))]

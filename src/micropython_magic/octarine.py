@@ -57,9 +57,24 @@ class MicroPythonMagic(Magics):
         super(MicroPythonMagic, self).__init__(shell)
         self.shell: InteractiveShell
         self._MCU: list[MPRemote2] = [MPRemote2(shell)]
+        self._current_backend = "serial"  # Track current backend
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
         set_xmode(mode=str(self.xmode))
+    
+    def _get_mcu_for_backend(self, backend: str, docker_image: str = "micropython/unix:latest") -> MPRemote2:
+        """Get or create MCU instance for the specified backend."""
+        if backend != self._current_backend or len(self._MCU) == 0:
+            # Create new MPRemote2 instance for the backend
+            log.info(f"Switching to {backend} backend")
+            mcu = MPRemote2(
+                self.shell, 
+                backend=backend, 
+                docker_image=docker_image
+            )
+            self._MCU = [mcu]
+            self._current_backend = backend
+        return self._MCU[0]
 
     @observe("loglevel")
     def _loglevel_changed(self, change):
@@ -130,6 +145,17 @@ class MicroPythonMagic(Magics):
         "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
     )
     @argument(
+        "--backend", 
+        choices=["serial", "docker"], 
+        default="serial",
+        help="Backend to use: 'serial' for USB/serial devices or 'docker' for micropython/unix container"
+    )
+    @argument(
+        "--docker-image",
+        default="micropython/unix:latest", 
+        help="Docker image to use for docker backend"
+    )
+    @argument(
         "--reset", "--soft-reset", action="store_true", help="Reset device (before running cell)."
     )
     @argument("--hard-reset", action="store_true", help="reset device.")
@@ -142,6 +168,9 @@ class MicroPythonMagic(Magics):
         if args.timeout == -1:
             args.timeout = self.timeout
         assert isinstance(args.timeout, float)
+        
+        # Get MCU instance for the specified backend
+        mcu = self._get_mcu_for_backend(args.backend, args.docker_image)
 
         if args.select:
             if len(args.select) > 1:
@@ -149,27 +178,27 @@ class MicroPythonMagic(Magics):
                 log.warning(f"{args.select=} not yet implemented")
                 return
             else:
-                self.select(args.select[0])
+                mcu.select_device(args.select[0])
 
         if line:
             log.debug(f"{args=}")
         # pre processing - these can be combined with the main processing
 
         if args.hard_reset:
-            self.hard_reset()
+            mcu.run_cmd(["reset"])
         elif args.reset:
-            self.soft_reset()
+            mcu.run_cmd(["soft-reset", "eval", "True"])
 
         if args.writefile:
             log.debug(f"{args.writefile=}")
             if args.new:
                 log.warning(f"{args.new=} not implemented")
-            self.MCU.copy_cell_to_mcu(cell, filename=args.writefile)
+            mcu.copy_cell_to_mcu(cell, filename=args.writefile)
             return
 
         if args.readfile:
             log.debug(f"{args.readfile=},{args.new=}")
-            code = self.MCU.cell_from_mcu_file(args.readfile)
+            code = mcu.cell_from_mcu_file(args.readfile)
             # if the first line contains a magic command, replace it with this magic command but with the options commented out
             if code.startswith("# %%"):
                 code = "\n".join(code.split("\n")[1:])
@@ -183,7 +212,7 @@ class MicroPythonMagic(Magics):
         if not cell:
             raise UsageError("Please specify some MicroPython code to execute")
         log.trace(f"{cell=}")
-        output = self.MCU.run_cell(
+        output = mcu.run_cell(
             cell, timeout=args.timeout, follow=args.follow, mount=args.mount
         )
 
@@ -206,6 +235,17 @@ class MicroPythonMagic(Magics):
     @argument(
         "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
     )
+    @argument(
+        "--backend", 
+        choices=["serial", "docker"], 
+        default="serial",
+        help="Backend to use: 'serial' for USB/serial devices or 'docker' for micropython/unix container"
+    )
+    @argument(
+        "--docker-image",
+        default="micropython/unix:latest", 
+        help="Docker image to use for docker backend"
+    )
     @argument("--verify", action="store_true", help="verify that the device can be connected to")
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
@@ -223,6 +263,9 @@ class MicroPythonMagic(Magics):
             args.timeout = self.timeout
         if not isinstance(args.timeout, float):
             args.timeout = float(args.timeout)  # type: ignore
+
+        # Get MCU instance for the specified backend
+        mcu = self._get_mcu_for_backend(args.backend, args.docker_image)
 
         # try to fixup the expression after shell and argparse mangled it
         if args.statement and len(args.statement) >= 1:
@@ -242,22 +285,25 @@ class MicroPythonMagic(Magics):
                 log.warning(f"{args.select=} for multiple MCUs not yet implemented")
                 return
             else:
-                self.select(args.select[0], verify=args.verify)
+                mcu.select_device(args.select[0], verify=args.verify)
         if args.hard_reset:
-            self.hard_reset()
+            mcu.run_cmd(["reset"])
         elif args.reset:
-            self.soft_reset()
+            mcu.run_cmd(["soft-reset", "eval", "True"])
         elif args.bootloader:
-            self.MCU.run_cmd(["bootloader"])
+            mcu.run_cmd(["bootloader"])
 
         # processing
         if args.list:
+            if args.backend == "docker":
+                log.info("Docker backend: container instances will be listed when available")
+                return ["Docker backend active"]
             return self.list_devices()
         elif args.info:
-            return self.get_fw_info(args.timeout)
+            return mcu.get_fw_info(args.timeout)
 
         elif args.eval:
-            return self.eval(args.eval)
+            return self.eval(args.eval, mcu)
 
         elif args.statement:
             # Assemble the command to run
@@ -265,7 +311,7 @@ class MicroPythonMagic(Magics):
             cmd = ["exec", statement]
             log.debug(f"{cmd=}")
 
-            return self.MCU.run_cmd(
+            return mcu.run_cmd(
                 cmd,
                 stream_out=bool(args.stream),
                 timeout=float(args.timeout),
@@ -289,7 +335,7 @@ class MicroPythonMagic(Magics):
         device = port.strip() if port else "auto"
         return self.MCU.select_device(device, verify=verify)
 
-    def eval(self, line: str):
+    def eval(self, line: str, mcu: Optional[MPRemote2] = None):
         """
         Run a Micropython expression on an attached device using mpremote.
         Note that the expression
@@ -299,6 +345,9 @@ class MicroPythonMagic(Magics):
         Runs the statement on the MCU and tries to convert the output to a python object.
         If that fails it returns the raw output as a string.
         """
+        if mcu is None:
+            mcu = self.MCU
+            
         # Assemble the command to run
         statement = line.strip()
         cmd_old = (
@@ -309,7 +358,7 @@ class MicroPythonMagic(Magics):
             f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
         ]
         log.trace(repr(cmd))
-        output = self.MCU.run_cmd(cmd, stream_out=False)
+        output = mcu.run_cmd(cmd, stream_out=False)
         if isinstance(output, SList):
             matchers = [r"^.*Error:", r"^.*Exception:"]
             for ln in output.l:
@@ -318,7 +367,7 @@ class MicroPythonMagic(Magics):
                     raise MCUException(ln) from eval(ln.split(":")[0])
                 # check for json output and try to convert it
                 if ln.startswith(JSON_START) and ln.endswith(JSON_END):
-                    result = self.MCU.load_json_from_MCU(ln)
+                    result = mcu.load_json_from_MCU(ln)
                     if result != DONT_KNOW:
                         return result
         return output
