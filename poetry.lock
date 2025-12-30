@@ -5584,4 +5584,4 @@ widgets = []
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9.2,<4.0"
-content-hash = "680f93aec11f5089e1b4169d042029132f91e01b38ff039d924c681c0fdd3186"
+content-hash = "1a25aae27eab2d8e9cb2456524d0cccc48f95ca642481ecec9871dbe015d0534"
