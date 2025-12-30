@@ -10,7 +10,7 @@ from typing import List, Optional, Union
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
 from mpflash.mpremoteboard import RETRIES, MPRemoteBoard
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from micropython_magic.interactive import TIMEOUT, ipython_run
 from micropython_magic.logger import MCUException
@@ -149,7 +149,12 @@ class IPyRemoteBoard(MPRemoteBoard):
                 pass
         return result
 
-    @retry(stop=stop_after_attempt(RETRIES), wait=wait_fixed(1), reraise=True)
+    @retry(
+        stop=stop_after_attempt(RETRIES),
+        wait=wait_fixed(1),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError)),
+        reraise=True,
+    )
     def run_command_ipython(
         self,
         cmd: Union[str, List[str]],

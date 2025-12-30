@@ -347,13 +347,9 @@ class MicroPythonMagic(Magics):
             clear_output(wait=True)
             display(box)
 
-            for mcu in conn_mcus:
-                try:
-                    mcu.get_mcu_info()
-                except ConnectionError:
-                    pass
-                progress.value += 1
-
+            # Devices are already populated by list_mcus; skip per-device refresh to avoid
+            # an unnecessary second scan that slows down listing.
+            progress.value = len(conn_mcus)
             progress.bar_style = "success"
             progress.description = ""
             progress.layout.display = "none"
