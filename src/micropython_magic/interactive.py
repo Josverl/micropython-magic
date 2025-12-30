@@ -13,6 +13,7 @@ from .memoryinfo import RE_ALL
 TIMEOUT = 300
 MPY_MAGIC = "mpy_magic"  # namespace key for micropython-magic variables
 
+
 # todo : pass in the to detect in the output
 def do_output(output: str, tags: LogTags, log_errors=True, hide_meminfo=False) -> bool:
     """Assess a line of output, return True if the output should be displayed"""
@@ -80,20 +81,48 @@ def ipython_run(
         A populated SList of output lines when follow is True, otherwise None.
     """
     selected_tags = tags or IPYTHON_LOG_TAGS
+    error_lines: List[str] = []
+    in_error = False
+    cell_no = "?"
+    ipy = get_ipython()
+    if ipy and getattr(ipy, "execution_count", None) is not None:
+        cell_no = ipy.execution_count
+
+    def _convert_stdin_trace(line: str) -> str:
+        """Replace 'File "<stdin>", line X, in <module>' with 'Cell <N>, line X.'"""
+        match = re.match(r"^(\s*)File \"<stdin>\", line (\d+), in <module>", line)
+        if match:
+            indent, lineno = match.groups()
+            return f"{indent}Cell {cell_no}, line {lineno}. "
+        return line
 
     def handler(line: str) -> Optional[str]:
+        nonlocal in_error
         if "no device found" in line or "failed to access" in line:
             raise ConnectionError(line.strip())
-        if not do_output(
+        converted = _convert_stdin_trace(line)
+        should_output = do_output(
             line,
             selected_tags,
-            log_errors=log_errors,
+            log_errors=False,
             hide_meminfo=hide_meminfo,
-        ):
-            return None
-        if stream_out:
-            print(line, end="")
-        return line
+        )
+
+        if log_errors and any(tag in line for tag in selected_tags.error_tags):
+            in_error = True
+            error_lines.append(converted.rstrip("\n"))
+            log.error(converted.rstrip())
+        elif in_error:
+            error_lines.append(converted.rstrip("\n"))
+
+        if in_error:
+            should_output = True
+
+        if should_output:
+            if stream_out:
+                print(converted, end="")
+            return converted
+        return None
 
     if not follow:
         execute(
@@ -103,6 +132,8 @@ def ipython_run(
             log_errors=log_errors,
             follow=False,
         )
+        if log_errors and error_lines:
+            raise MCUException("\n".join(error_lines))
         return None
 
     _, captured = execute(
@@ -114,6 +145,9 @@ def ipython_run(
         ignore_tags=selected_tags.ignore_tags,
         follow=True,
     )
+
+    if log_errors and error_lines:
+        raise MCUException("\n".join(error_lines))
 
     if not captured:
         return None
