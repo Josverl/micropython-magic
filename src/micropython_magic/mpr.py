@@ -1,4 +1,4 @@
-"""Micropython Remote (MPR) magic for Jupyter Notebooks"""
+"""Micropython Remote magic for Jupyter Notebooks"""
 
 import contextlib
 import json
@@ -12,10 +12,8 @@ from loguru import logger as log
 from mpflash.mpremoteboard import RETRIES, MPRemoteBoard
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from micropython_magic.interactive import TIMEOUT, ipython_run
 from micropython_magic.logger import MCUException
-from micropython_magic.script_access import path_for_script
-
-from .interactive import TIMEOUT, ipython_run
 
 JSON_START = "<json~"
 JSON_END = "~json>"
@@ -36,25 +34,26 @@ class IPyRemoteBoard(MPRemoteBoard):
     def __init__(
         self,
         shell: InteractiveShell,
-        port: str = "auto",
+        serialport: str = "auto",
         resume: bool = True,
     ):
         self.shell: InteractiveShell = shell
-        super().__init__(serialport=port)
+        super().__init__(serialport=serialport)
         self.resume = resume  # by default resume the device to maintain state
         # self.timeout = TIMEOUT
 
-    def select_device(self, port: Optional[str], verify: bool = False):
+    def select_device(self, serialport: Optional[str], verify: bool = False):
         """try to select the device to connect to by specifying the serial port name."""
-        _port = port.strip() if port else "auto"
+        _comport = serialport.strip() if serialport else "auto"
+        # update the serial port used by mpremote; keep MicroPython port info untouched
+        self.serialport = _comport
         if not verify:
-            self.port = _port
-            return _port
-        # cmd = f"""eval \"'{_port}'\""""
-        cmd = ["eval", f"\"'{_port}'\""]
+            return _comport
+
+        # verify that there is indeed a device at that port
+        cmd = ["eval", f"\"'{_comport}'\""]
         try:
             output = self.run_command_ipython(cmd)
-            self.port = _port
         except Exception as e:
             output = e
         return output
@@ -175,7 +174,7 @@ class IPyRemoteBoard(MPRemoteBoard):
             resume=resume if resume is not None else self.resume,
             auto_connect=auto_connect,
         )
-        with log.contextualize(port=self.port):
+        with log.contextualize(serialport=self.serialport):
             log.debug(full_cmd)
             return ipython_run(
                 full_cmd,

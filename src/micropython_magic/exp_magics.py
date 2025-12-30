@@ -43,20 +43,6 @@ from micropython_magic.octarine import MicroPythonMagic
 
 @magics_class
 class ExpMagics(MicroPythonMagic):
-    # @cell_magic("cool")
-    # def magic_cool(self, line, cell):
-    #     """\
-    #     A really cool magic command.
-    #     """
-    #     print(f"Magically cool ! {cell=}")
-
-    # @line_magic("mpremote2")
-    # def mpremote(self, line: str):
-    #     """Run a mpremote command with the commandline options"""
-    #     cmd = f'mpremote "{line}"'
-    #     output = self.MCU.run_cmd(cmd, auto_connect=False)
-    #     self.output = output
-    #     return output
 
     @line_magic("slow")
     def slow(self, line: str):

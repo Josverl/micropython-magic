@@ -34,7 +34,7 @@ from loguru import logger as log  # type: ignore
 from traitlets import Float as Float_
 from traitlets import UseEnum, observe
 
-from micropython_magic.interactive import TIMEOUT
+from micropython_magic.interactive import MPY_MAGIC, TIMEOUT
 from micropython_magic.param_fixup import get_code
 
 from .logger import LogLevel, MCUException, set_log_level
@@ -292,7 +292,7 @@ class MicroPythonMagic(Magics):
         elif args.reset:
             self.soft_reset()
         elif args.bootloader:
-            self.MCU.run_command(["bootloader"])
+            self.MCU.run_command_ipython(["bootloader"])
 
         # processing
         if args.list:
@@ -309,10 +309,10 @@ class MicroPythonMagic(Magics):
             cmd = ["exec", statement]
             log.debug(f"{cmd=}")
 
-            return self.MCU.run_command(
+            return self.MCU.run_command_ipython(
                 cmd,
-                # stream_out=bool(args.stream),  # FIXME:
                 timeout=float(args.timeout),
+                follow=True,
             )
 
     # -------------------------------------------------------------------------
@@ -396,18 +396,15 @@ class MicroPythonMagic(Magics):
                 for row in rows
             )
             html = f"""
-            <div style='margin-top:8px; color: inherit;'>
-                <h4 style='margin:0 0 6px 0; font-weight:600; color: inherit;'>Connected boards</h4>
-                <table style='border-collapse:collapse; border:1px solid currentColor; border-color: rgba(128,128,128,0.35); color: inherit; background: transparent;'>
-                    <thead style='background: rgba(128,128,128,0.08); color: inherit;'>{header_html}</thead>
-                    <tbody>{body_html}</tbody>
-                </table>
-            </div>
+            <table style='border-collapse:collapse; border:1px solid #888;'>
+                <thead><tr style='background:#f0f0f0;'>{header_html}</tr></thead>
+                <tbody>{body_html}</tbody>
+            </table>
             """
             table_html.value = html
             return True
 
-        # TODO: Use mpflash list to get more detailed information about each device
+        # Use mpflash list to get more detailed information about each device
         include = ["*"]
         ignore = []
         bluetooth = False
@@ -417,9 +414,11 @@ class MicroPythonMagic(Magics):
             return None
         devices = [mcu.to_dict() for mcu in conn_mcus]
         if self.shell:
-            self.shell.user_ns["devices"] = devices
+            if MPY_MAGIC not in self.shell.user_ns:
+                self.shell.user_ns[MPY_MAGIC] = {}
+            self.shell.user_ns[MPY_MAGIC]["devices"] = devices
         if _render_ipy(conn_mcus):
-            return None
+            return devices
 
         # CLI / non-IPython: keep existing Rich rendering
         show_mcus(conn_mcus, refresh=False)
@@ -449,8 +448,7 @@ class MicroPythonMagic(Magics):
             f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
         ]
         log.trace(repr(cmd))
-        # output = self.MCU.run_command(cmd, stream_out=False)
-        output = self.MCU.run_command(cmd)
+        output = self.MCU.run_command_ipython(cmd, stream_out=False)
         if isinstance(output, SList):
             matchers = [r"^.*Error:", r"^.*Exception:"]
             for ln in output.l:
@@ -469,7 +467,7 @@ class MicroPythonMagic(Magics):
         Perform a soft-reset on the current Micropython device.
         """
         # Append an eval statement to avoid ending up in the repl
-        output = self.MCU.run_command(["soft-reset", "eval", "True"])
+        output = self.MCU.run_command_ipython(["soft-reset", "eval", "True"])
         self.output = output
         return output
 
@@ -477,7 +475,7 @@ class MicroPythonMagic(Magics):
         """
         Perform a hard-reset on the current Micropython device.
         """
-        output = self.MCU.run_command(["reset"])
+        output = self.MCU.run_command_ipython(["reset"])
         self.output = output
         return output
 

@@ -11,7 +11,7 @@ from .logger import MCUException
 from .memoryinfo import RE_ALL
 
 TIMEOUT = 300
-
+MPY_MAGIC = "mpy_magic"  # namespace key for micropython-magic variables
 
 # todo : pass in the to detect in the output
 def do_output(output: str, tags: LogTags, log_errors=True, hide_meminfo=False) -> bool:
