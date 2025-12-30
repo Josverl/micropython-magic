@@ -1,44 +1,16 @@
-import contextlib
-import os
 import re
-import signal
-import subprocess
-import sys
-from dataclasses import dataclass
-from threading import Timer
 from typing import List, Optional, Union
 
 from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
 from IPython.utils.text import SList
 from loguru import logger as log
+from mpflash.mpremoteboard.runner import IPYTHON_LOG_TAGS, LogTags, execute
 
 from .logger import MCUException
 from .memoryinfo import RE_ALL
 
 TIMEOUT = 300
-
-
-@dataclass
-class LogTags:
-    reset_tags: List[str]
-    error_tags: List[str]
-    warning_tags: List[str]
-    success_tags: List[str]
-    ignore_tags: List[str]
-    trace_tags: List[str]
-    trace_res: List[str]
-
-
-DEFAULT_LOG_TAGS = LogTags(
-    reset_tags=["rst cause:1, boot mode:"],
-    error_tags=["Error: ", "Exception: ", "ERROR :", "CRIT  :"],  #
-    warning_tags=["WARNING:", "WARN  :"],
-    success_tags=["SUCCESS", "SUCCESS~"],
-    ignore_tags=[],
-    trace_tags=["Traceback (most recent call last)", '   File "<stdin>", '],
-    trace_res=[r"\s+File \"[\w<>.]+\", line \d+, in .*"],
-)
 
 
 # todo : pass in the to detect in the output
@@ -58,7 +30,9 @@ def do_output(output: str, tags: LogTags, log_errors=True, hide_meminfo=False) -
         #     raise MCUException(output)
         # return False
     # detect tracebacks
-    if any(tag in output for tag in tags.trace_tags) or any(re.match(rx, output) for rx in tags.trace_res):
+    if any(tag in output for tag in (tags.trace_tags or [])) or any(
+        re.match(rx, output) for rx in (tags.trace_res or [])
+    ):
         log.warning(output.rstrip())
         return False
     # detect warnings
@@ -84,7 +58,7 @@ def ipython_run(
     hide_meminfo: bool = False,
     store_output: bool = True,
     log_errors: bool = True,
-    tags: LogTags = DEFAULT_LOG_TAGS,
+    tags: Optional[LogTags] = None,
     follow: bool = True,
     # port: Optional[str] = "",
 ) -> Optional[
@@ -103,131 +77,50 @@ def ipython_run(
         follow: follow the output of the command until it finishes
 
     returns:
-        (exit_code:int, output:List[str])
-        a tuple of the exit code of the command and the output of the command
+        A populated SList of output lines when follow is True, otherwise None.
     """
-    # Only implement line based reading and parsing for now
-    # it is, faster, easier to implement and more useful for parsing regexes
-    line_based = True
-    interupted = False
-    forever = timeout == 0
-    timeout = abs(timeout)
+    selected_tags = tags or IPYTHON_LOG_TAGS
 
-    all_out = []
-    output = ""
+    def handler(line: str) -> Optional[str]:
+        if "no device found" in line or "failed to access" in line:
+            raise ConnectionError(line.strip())
+        if not do_output(
+            line,
+            selected_tags,
+            log_errors=log_errors,
+            hide_meminfo=hide_meminfo,
+        ):
+            return None
+        if stream_out:
+            print(line, end="")
+        return line
 
-    log.debug(f"{'line' if line_based else 'char'} based, with timeout of {timeout} seconds")
-    assert isinstance(cmd, list)
-    try:
-        process = subprocess.Popen(
+    if not follow:
+        execute(
             cmd,
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=False,
-        )  # ,  universal_newlines=True)
-    except FileNotFoundError as e:  # pragma: no cover
-        raise FileNotFoundError(f"Failed to start {cmd[0]}") from e
-
-    assert process.stdout is not None
-    if follow == False:
-        # we do not need to follow the output of the command
-        # just return
+            timeout=timeout,
+            line_handler=handler,
+            log_errors=log_errors,
+            follow=False,
+        )
         return None
-    process_timer = None
-    try:
-        if not forever:
-            # only if a timeout was specified start a timer to kill the process
-            def timed_out():
-                process.kill()
-                log.warning(f"Command {cmd} timed out after {timeout} seconds")
 
-            process_timer = Timer(interval=timeout, function=timed_out)
-            process_timer.start()
-        while forever or (process_timer and process_timer.is_alive()):
-            if line_based:
-                # TODO: Ctrl-C / KeyboardInterrupt is only detected at line-end (after \n)
-                output_b = process.stdout.readline()
-                output = output_b.decode("utf-8", errors="ignore")
-                if "no device found" in output or "failed to access" in output:
-                    raise ConnectionError(output.strip())
-                log.trace(f"output: {output}")
-                if not do_output(output, tags, log_errors=log_errors, hide_meminfo=hide_meminfo):
-                    continue
+    _, captured = execute(
+        cmd,
+        timeout=timeout,
+        line_handler=handler,
+        log_errors=log_errors,
+        log_warnings=True,
+        ignore_tags=selected_tags.ignore_tags,
+        follow=True,
+    )
 
-            else:
-                output_b = process.stdout.read(1)
-                # ToDo # swallow the output if it matches a regex
-                output = output_b.decode("utf-8", errors="ignore")
+    if not captured:
+        return None
 
-            if output == "" and process.poll() is not None:
-                # process has finished, read the rest of the output before breaking out of the loop
-                break
-            if output:
-                all_out.append(output)
-                if stream_out:
-                    print(output, end="")
-                output = ""
-
-        # rearrange the output to be a list of lines
-        all_out = SList("".join(all_out).splitlines())
-        if store_output:
-            # update the ipython kernel namespace with the output of the command
-            # this is useful for storing the output of a command in a variable
-            # Normally the output of a command is not stored in the kernel namespace
-            ipy: InteractiveShell = get_ipython()  # type: ignore
-            ipy.displayhook.fill_exec_result(all_out)
-            ipy.displayhook.update_user_ns(all_out)
-        return all_out
-    except KeyboardInterrupt:  # pragma: no cover
-        # if the user presses ctrl-c or stops the cell,
-        # kill the process and raise a keyboard interrupt
-        with contextlib.suppress(KeyboardInterrupt):
-            interupted = True
-            log.warning("Keyboard interrupt detected")
-            if os.name == "nt":  # Windows
-                os.kill(process.pid, signal.CTRL_C_EVENT)
-            else:  # Unix-like
-                os.kill(process.pid, signal.SIGINT)
-            # kill the process
-            process.kill()
-            if process_timer:
-                process_timer.cancel()
-            if output:
-                do_output(output, tags, log_errors=log_errors, hide_meminfo=hide_meminfo)
-    except MCUException as mcu_e:
-        log.trace("re-raise MCUException")
-        raise mcu_e
-
-    finally:
-        log.trace("Finally in ipython_run")
-
-        # ignore unraisable exceptions
-        def unraisable_hook(unraisable):  # pragma: no cover
-            # this is a bit crude, but seems to be the only way
-            # to catch both  weakref deletions and keyboard interrupts
-            # https://docs.python.org/3/library/sys.html?highlight=unraisable#sys.unraisablehook
-            return
-
-        sys.unraisablehook = unraisable_hook
-
-        try:
-            if process.stderr and log_errors:
-                for line in process.stderr:
-                    log.warning(line)
-            if not interupted and process_timer and process_timer.is_alive():
-                process_timer.cancel()
-        except Exception as e:
-            log.trace(e)
-
-        # TODO: interrupt the script running on the MCU
-        # if interupted:
-        # assert port
-        #     # ignore KeyboardInterrupt
-        #     try:
-        #         # subprocess.run(["mpremote", "connect", port, "eval", "'stop'"])
-        #         conn = Pyboard("COM15")
-        #         conn.serial.write(b"\x03\x03")
-        #         conn.close()
-        #     except KeyboardInterrupt:
-        #         pass
+    all_out = SList("".join(captured).splitlines())
+    if store_output:
+        ipy: InteractiveShell = get_ipython()  # type: ignore
+        ipy.displayhook.fill_exec_result(all_out)
+        ipy.displayhook.update_user_ns(all_out)
+    return all_out

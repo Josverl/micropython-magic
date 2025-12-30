@@ -326,6 +326,87 @@ class MicroPythonMagic(Magics):
         from mpflash.connected import list_mcus
         from mpflash.list import show_mcus
 
+        def _render_ipy(conn_mcus):
+            try:
+                import ipywidgets as widgets
+                from IPython.display import clear_output, display
+            except Exception:
+                return False
+
+            # Single composite widget to avoid multiple outputs
+            progress = widgets.IntProgress(
+                value=0,
+                min=0,
+                max=len(conn_mcus),
+                description="Updating",
+                bar_style="",
+                layout=widgets.Layout(width="100%"),
+            )
+            table_html = widgets.HTML(value="")
+            box = widgets.VBox([progress, table_html])
+            clear_output(wait=True)
+            display(box)
+
+            for mcu in conn_mcus:
+                try:
+                    mcu.get_mcu_info()
+                except ConnectionError:
+                    pass
+                progress.value += 1
+
+            progress.bar_style = "success"
+            progress.description = ""
+            progress.layout.display = "none"
+
+            # Build a simple HTML table (no Rich) to avoid extra outputs
+            headers = [
+                "Serial",
+                "Family",
+                "Port",
+                "Board",
+                "Variant",
+                "CPU",
+                "Version",
+                "Build",
+            ]
+            rows = []
+            for mcu in conn_mcus:
+                description = mcu.description or ""
+                if "description" in mcu.toml:
+                    description = f"{description}\n{mcu.toml['description']}".strip()
+                rows.append(
+                    [
+                        mcu.serialport,
+                        mcu.family,
+                        mcu.port,
+                        f"{mcu.board}\n{description}".strip(),
+                        mcu.variant,
+                        mcu.cpu,
+                        mcu.version,
+                        mcu.build,
+                    ]
+                )
+
+            def cell(val: str) -> str:
+                return (val or "").replace("\n", "<br>")
+
+            header_html = "".join(f"<th>{h}</th>" for h in headers)
+            body_html = "".join(
+                "<tr>" + "".join(f"<td>{cell(v)}</td>" for v in row) + "</tr>"
+                for row in rows
+            )
+            html = f"""
+            <div style='margin-top:8px; color: inherit;'>
+                <h4 style='margin:0 0 6px 0; font-weight:600; color: inherit;'>Connected boards</h4>
+                <table style='border-collapse:collapse; border:1px solid currentColor; border-color: rgba(128,128,128,0.35); color: inherit; background: transparent;'>
+                    <thead style='background: rgba(128,128,128,0.08); color: inherit;'>{header_html}</thead>
+                    <tbody>{body_html}</tbody>
+                </table>
+            </div>
+            """
+            table_html.value = html
+            return True
+
         # TODO: Use mpflash list to get more detailed information about each device
         include = ["*"]
         ignore = []
@@ -337,9 +418,12 @@ class MicroPythonMagic(Magics):
         devices = [mcu.to_dict() for mcu in conn_mcus]
         if self.shell:
             self.shell.user_ns["devices"] = devices
-        show_mcus(conn_mcus, refresh=False)
+        if _render_ipy(conn_mcus):
+            return None
 
-        return SList()
+        # CLI / non-IPython: keep existing Rich rendering
+        show_mcus(conn_mcus, refresh=False)
+        return None
 
     def select(self, port: Optional[str], verify: bool = False):
         """

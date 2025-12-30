@@ -9,7 +9,8 @@ from typing import List, Optional, Union
 
 from IPython.core.interactiveshell import InteractiveShell
 from loguru import logger as log
-from mpflash.mpremoteboard import MPRemoteBoard
+from mpflash.mpremoteboard import RETRIES, MPRemoteBoard
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from micropython_magic.logger import MCUException
 from micropython_magic.script_access import path_for_script
@@ -149,6 +150,7 @@ class IPyRemoteBoard(MPRemoteBoard):
                 pass
         return result
 
+    @retry(stop=stop_after_attempt(RETRIES), wait=wait_fixed(1), reraise=True)
     def run_command_ipython(
         self,
         cmd: Union[str, List[str]],
@@ -158,24 +160,29 @@ class IPyRemoteBoard(MPRemoteBoard):
         shell=True,
         timeout: Union[int, float] = 0,
         follow: bool = True,
+        resume: Optional[bool] = None,
+        hide_meminfo: bool = False,
+        store_output: bool = True,
     ):
         """run a command on the device and return the output"""
         if isinstance(cmd, str) and " " in cmd:
             cmd = cmd.split(" ")
         elif isinstance(cmd, str):
             cmd = [cmd]
-        if auto_connect:
-            cmd = self.cmd_prefix() + cmd
-            # if isinstance(cmd, str):
-            #     cmd = f"""{self.cmd_prefix} {cmd}"""
-            # else:
-            #     log.warning(f"cmd is not a string: {cmd}")
+
+        full_cmd = self.build_cmd(
+            cmd,
+            resume=resume if resume is not None else self.resume,
+            auto_connect=auto_connect,
+        )
         with log.contextualize(port=self.port):
-            log.debug(cmd)
+            log.debug(full_cmd)
             return ipython_run(
-                cmd,
+                full_cmd,
                 stream_out=stream_out,
                 shell=shell,
                 timeout=timeout,
                 follow=follow,
+                hide_meminfo=hide_meminfo,
+                store_output=store_output,
             )
