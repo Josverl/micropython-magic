@@ -521,7 +521,7 @@ class MemoryInfoList(UserList):
         in_mem_info = False
         nr = 0
         mem_info_log = []
-        # find the meory_info lines in the (console) log output
+        # find the memory_info lines in the (console) log output
         while nr < len(log_text):
             # if the regex matches, start a new map
             if match := RE_MEM_INFO_START.match(log_text[nr]):
