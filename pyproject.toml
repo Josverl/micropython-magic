@@ -19,10 +19,13 @@ include = []
 exclude = ["**/tests/**", "**/*-test", "**/samples.py"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-mpremote = "^1.22.0"
+python = ">=3.9.2,<4.0"
+mpremote = "^1.27.0"
 loguru = "^0.7.2"
 ipympl = "^0.9.3"
+mpflash = "^1.26.7"
+libusb = "1.0.27.post4"
+rich = {extras = ["jupyter"], version = "^14.2.0"}
 
 [tool.poetry.extras]
 widgets = ["bqplot", "numpy"]
