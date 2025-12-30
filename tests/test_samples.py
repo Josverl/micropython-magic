@@ -10,7 +10,7 @@ from testbook import testbook
 from testbook.client import CellExecutionError, TestbookNotebookClient
 
 from micropython_magic.interactive import TIMEOUT
-from micropython_magic.mpr import MPRemote2
+from micropython_magic.mpr import IPyRemoteBoard
 from micropython_magic.script_access import path_for_script
 
 # avoid RuntimeWarning: Proactor event loop does not implement add_reader
@@ -40,7 +40,13 @@ def test_samples(notebook_name: Path):
                 pytest.xfail(f"Test requires a {port} device connected")
         if port in ["wokwi", "rfc2217"]:
             remoteport = "rfc2217://localhost:4000"
-            cmd = ["mpremote", "connect", remoteport, "run", str(path_for_script("fw_info.py"))]
+            cmd = [
+                "mpremote",
+                "connect",
+                remoteport,
+                "run",
+                str(path_for_script("fw_info.py")),
+            ]
             try:
                 output = subprocess.check_output(cmd, timeout=TIMEOUT)
                 if "'family': 'micropython'" not in output.decode("utf-8"):
@@ -52,5 +58,13 @@ def test_samples(notebook_name: Path):
         # if any of the cells raised an assertion error, this will fail the test
         assert tb.code_cells_executed > 0  # at least one cell executed
         # count the code cells in the notebook with non-empty source
-        cell_count = len([c for c in tb.nb["cells"] if c["cell_type"] == "code" and c["source"].strip()])
-        assert tb.code_cells_executed == cell_count, f"All {cell_count} code cells should have executed."
+        cell_count = len(
+            [
+                c
+                for c in tb.nb["cells"]
+                if c["cell_type"] == "code" and c["source"].strip()
+            ]
+        )
+        assert tb.code_cells_executed == cell_count, (
+            f"All {cell_count} code cells should have executed."
+        )

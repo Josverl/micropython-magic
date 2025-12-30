@@ -16,8 +16,19 @@ import traitlets
 from IPython.core.error import UsageError
 from IPython.core.getipython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
-from IPython.core.magic import Magics, cell_magic, line_magic, magics_class, output_can_be_silenced
-from IPython.core.magic_arguments import argument, argument_group, magic_arguments, parse_argstring
+from IPython.core.magic import (
+    Magics,
+    cell_magic,
+    line_magic,
+    magics_class,
+    output_can_be_silenced,
+)
+from IPython.core.magic_arguments import (
+    argument,
+    argument_group,
+    magic_arguments,
+    parse_argstring,
+)
 from IPython.utils.text import SList
 from loguru import logger as log  # type: ignore
 from traitlets import Float as Float_
@@ -27,7 +38,7 @@ from micropython_magic.interactive import TIMEOUT
 from micropython_magic.param_fixup import get_code
 
 from .logger import LogLevel, MCUException, set_log_level
-from .mpr import DONT_KNOW, JSON_END, JSON_START, MPRemote2
+from .mpr import DONT_KNOW, JSON_END, JSON_START, IPyRemoteBoard
 
 # set the log level to WARNING
 set_log_level("WARNING")
@@ -55,8 +66,10 @@ class MicroPythonMagic(Magics):
     def __init__(self, shell: InteractiveShell):
         # first call the parent constructor
         super(MicroPythonMagic, self).__init__(shell)
-        self.shell: InteractiveShell
-        self._MCU: list[MPRemote2] = [MPRemote2(shell)]
+        assert isinstance(shell, InteractiveShell), (
+            "MicroPythonMagic can only be used in an IPython InteractiveShell"
+        )
+        self._MCU: list[IPyRemoteBoard] = [IPyRemoteBoard(shell)]
         # self.port: str = "auto"  # by default connect to the first device
         # self.resume = True  # by default resume the device to maintain state
         set_xmode(mode=str(self.xmode))
@@ -75,7 +88,7 @@ class MicroPythonMagic(Magics):
             set_xmode(change["new"])
 
     @property
-    def MCU(self) -> MPRemote2:
+    def MCU(self) -> IPyRemoteBoard:
         """Return the first/current/only MCU"""
         # to allow expansion to multiple MCUs in the future
         return self._MCU[0]
@@ -127,10 +140,18 @@ class MicroPythonMagic(Magics):
     #
     @argument_group("Devices")
     @argument(
-        "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
+        "--select",
+        "-s",
+        "--connect",
+        nargs="+",
+        help="serial port to connect to",
+        metavar="PORT",
     )
     @argument(
-        "--reset", "--soft-reset", action="store_true", help="Reset device (before running cell)."
+        "--reset",
+        "--soft-reset",
+        action="store_true",
+        help="Reset device (before running cell).",
     )
     @argument("--hard-reset", action="store_true", help="reset device.")
     def micropython(self, line: str, cell: str = ""):
@@ -168,6 +189,7 @@ class MicroPythonMagic(Magics):
             return
 
         if args.readfile:
+            assert self.shell, "No IPython shell available"
             log.debug(f"{args.readfile=},{args.new=}")
             code = self.MCU.cell_from_mcu_file(args.readfile)
             # if the first line contains a magic command, replace it with this magic command but with the options commented out
@@ -196,21 +218,43 @@ class MicroPythonMagic(Magics):
     @magic_arguments("mpy")
     #
     @argument_group("Code execution")
-    @argument("statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)")
-    @argument("--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION")
+    @argument(
+        "statement", nargs="*", help="Micropython code to run.", metavar="STATEMENT(S)"
+    )
+    @argument(
+        "--eval", "-e", nargs="*", help="Expression to evaluate", metavar="EXPRESSION"
+    )
     @argument("--timeout", default=-1, help="maximum timeout for the cell to run")
-    @argument("--stream", action="store_true", help="stream each line of output as it is received")
+    @argument(
+        "--stream",
+        action="store_true",
+        help="stream each line of output as it is received",
+    )
     #
     @argument_group("Devices")
-    @argument("--list", "--devs", "-l", action="store_true", help="List available devices.")
     @argument(
-        "--select", "-s", "--connect", nargs="+", help="serial port to connect to", metavar="PORT"
+        "--list", "--devs", "-l", action="store_true", help="List available devices."
     )
-    @argument("--verify", action="store_true", help="verify that the device can be connected to")
+    @argument("--json", "-j", action="store_true", help="Output in JSON format.")
+    @argument(
+        "--select",
+        "-s",
+        "--connect",
+        nargs="+",
+        help="serial port to connect to",
+        metavar="PORT",
+    )
+    @argument(
+        "--verify",
+        action="store_true",
+        help="verify that the device can be connected to",
+    )
     @argument("--reset", "--soft-reset", action="store_true", help="reset device.")
     @argument("--hard-reset", action="store_true", help="reset device.")
     @argument("--info", action="store_true", help="get boardinfo from device")
-    @argument("--bootloader", action="store_true", help="make the device enter its bootloader")
+    @argument(
+        "--bootloader", action="store_true", help="make the device enter its bootloader"
+    )
     @output_can_be_silenced
     def mpy_line(self, line: str):
         """
@@ -248,11 +292,11 @@ class MicroPythonMagic(Magics):
         elif args.reset:
             self.soft_reset()
         elif args.bootloader:
-            self.MCU.run_cmd(["bootloader"])
+            self.MCU.run_command(["bootloader"])
 
         # processing
         if args.list:
-            return self.list_devices()
+            return self.list_devices(json=args.json)
         elif args.info:
             return self.get_fw_info(args.timeout)
 
@@ -265,9 +309,9 @@ class MicroPythonMagic(Magics):
             cmd = ["exec", statement]
             log.debug(f"{cmd=}")
 
-            return self.MCU.run_cmd(
+            return self.MCU.run_command(
                 cmd,
-                stream_out=bool(args.stream),
+                # stream_out=bool(args.stream),  # FIXME:
                 timeout=float(args.timeout),
             )
 
@@ -275,12 +319,27 @@ class MicroPythonMagic(Magics):
     # worker methods - these are called by the magics
     # -------------------------------------------------------------------------
 
-    def list_devices(self) -> Optional[SList]:
+    def list_devices(self, json: bool = False) -> Optional[SList]:
         """
         Return a SList or list of the Micropython devices connected to the computer through serial ports or USB.
         """
-        cmd = ["mpremote", "connect", "list"]
-        return self.MCU.run_cmd(cmd, auto_connect=False, stream_out=False)
+        from mpflash.connected import list_mcus
+        from mpflash.list import show_mcus
+
+        # TODO: Use mpflash list to get more detailed information about each device
+        include = ["*"]
+        ignore = []
+        bluetooth = False
+        conn_mcus = list_mcus(ignore=ignore, include=include, bluetooth=bluetooth)
+        if not conn_mcus:
+            log.info("No devices found")
+            return None
+        devices = [mcu.to_dict() for mcu in conn_mcus]
+        if self.shell:
+            self.shell.user_ns["devices"] = devices
+        show_mcus(conn_mcus, refresh=False)
+
+        return SList()
 
     def select(self, port: Optional[str], verify: bool = False):
         """
@@ -301,15 +360,13 @@ class MicroPythonMagic(Magics):
         """
         # Assemble the command to run
         statement = line.strip()
-        cmd_old = (
-            f'''exec "import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')"'''
-        )
         cmd = [
             "exec",
             f"""import json; print('{JSON_START}',json.dumps({statement}),'{JSON_END}')""",
         ]
         log.trace(repr(cmd))
-        output = self.MCU.run_cmd(cmd, stream_out=False)
+        # output = self.MCU.run_command(cmd, stream_out=False)
+        output = self.MCU.run_command(cmd)
         if isinstance(output, SList):
             matchers = [r"^.*Error:", r"^.*Exception:"]
             for ln in output.l:
@@ -328,7 +385,7 @@ class MicroPythonMagic(Magics):
         Perform a soft-reset on the current Micropython device.
         """
         # Append an eval statement to avoid ending up in the repl
-        output = self.MCU.run_cmd(["soft-reset", "eval", "True"])
+        output = self.MCU.run_command(["soft-reset", "eval", "True"])
         self.output = output
         return output
 
@@ -336,9 +393,14 @@ class MicroPythonMagic(Magics):
         """
         Perform a hard-reset on the current Micropython device.
         """
-        output = self.MCU.run_cmd(["reset"])
+        output = self.MCU.run_command(["reset"])
         self.output = output
         return output
 
     def get_fw_info(self, timeout: float):
-        return self.MCU.get_fw_info(timeout)
+        try:
+            self.MCU.get_mcu_info(timeout)
+            return self.MCU.to_dict()
+        except Exception as e:
+            log.error(f"Failed to get MCU info: {e}")
+            return None
