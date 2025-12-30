@@ -52,7 +52,7 @@ class IPyRemoteBoard(MPRemoteBoard):
         # cmd = f"""eval \"'{_port}'\""""
         cmd = ["eval", f"\"'{_port}'\""]
         try:
-            output = self.run_command(cmd)
+            output = self.run_command_ipython(cmd)
             self.port = _port
         except Exception as e:
             output = e
@@ -80,7 +80,7 @@ class IPyRemoteBoard(MPRemoteBoard):
             # TODO: detect / retry / report errors copying the file
             log.trace(f"running {run_cmd}")
             try:
-                result = self.run_command(
+                result = self.run_command_ipython(
                     run_cmd,
                     stream_out=True,
                     timeout=timeout,
@@ -106,8 +106,8 @@ class IPyRemoteBoard(MPRemoteBoard):
             # copy the file to the device
             copy_cmd = ["cp", f.name, f":{filename}"]
             # TODO: detect / retry / report errors copying the file
-            # _ = self.run_command(copy_cmd, stream_out=False, timeout=60)
-            _ = self.run_command(copy_cmd, timeout=60)
+            # _ = self.run_command_ipython(copy_cmd, stream_out=False, timeout=60)
+            _ = self.run_command_ipython(copy_cmd, timeout=60)
             # log.info(_)
             # log.info(f.name, "copied to device")
             Path(f.name).unlink()
@@ -125,8 +125,8 @@ class IPyRemoteBoard(MPRemoteBoard):
             # copy_cmd = f"cp :{filename} {f.name}"
             copy_cmd = ["cp", f":{filename}", f.name]
             # TODO: detect / retry / report errors copying the file
-            # _ = self.run_command(copy_cmd, stream_out=False, timeout=60)
-            _ = self.run_command(copy_cmd, timeout=60)
+            # _ = self.run_command_ipython(copy_cmd, stream_out=False, timeout=60)
+            _ = self.run_command_ipython(copy_cmd, timeout=60)
 
             return Path(f.name).read_text()
 
@@ -149,7 +149,7 @@ class IPyRemoteBoard(MPRemoteBoard):
                 pass
         return result
 
-    def run_command(
+    def run_command_ipython(
         self,
         cmd: Union[str, List[str]],
         *,
