@@ -71,7 +71,11 @@ class IPyRemoteBoard(MPRemoteBoard):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             self._cell_to_file(f, cell)
             # copy the file to the device
-            run_cmd = ["run", f.name]  # TODO: may need to add quotes around f.name
+            # Add --no-follow option to mpremote run command when follow=False
+            if follow:
+                run_cmd = ["run", f.name]
+            else:
+                run_cmd = ["run", "--no-follow", f.name]
             if mount:
                 # prefix the run command with a mount command
                 # run_cmd = f'mount "{Path(mount).as_posix()}" ' + run_cmd
