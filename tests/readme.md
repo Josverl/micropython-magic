@@ -2,11 +2,12 @@
 
 The tests are intended to be run using pytest or using the VSCode python test runner.
 
-Note that the majority of test require interaction with a MCU, and therefore can not be run in CI (github actions).
+Note that the majority of test are Hardware In the Loop (HIL) tests, and require interaction with a MCU, and therefore can not be run in CI (github actions).
+
 I have not spend the time required to mock the mpremote and MCU interaction, but it should be possible if someone is willing to spend the time to build, and maintain such mocked tests.
 
-
-Most of the test make use of [*testbook*](https://testbook.readthedocs.io/en/latest/index.html), a unit testing framework for testing code in Jupyter Notebooks.
+Most of the test make use of [*testbook*](https://testbook.readthedocs.io/en/latest/index.html), a unit testing framework for testing code in Jupyter Notebooks. 
+Note that most of the testbook tests are HIL tests.
 
  * *test_samples.py* verify all the samples in the samples folder are working. (using testbook)
  * *testbook_cases* - testbook tests that are fully coded as notebooks, and are located in the `test/testbook_cases` folder.
