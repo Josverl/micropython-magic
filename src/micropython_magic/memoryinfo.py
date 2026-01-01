@@ -3,9 +3,10 @@ from __future__ import annotations
 import datetime
 import re
 import time
+from collections import UserList
 from dataclasses import InitVar, dataclass
 from functools import cached_property
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import matplotlib.dates as mpl_dates
 import matplotlib.pyplot as plt
@@ -57,7 +58,19 @@ DT_MEMINFO = np.dtype(
             "stack",
             "stack used",
         ],
-        "formats": ["U25", "datetime64[us]", "i4", "i4", "i4", "i4", "i4", "i4", "i4", "i4", "i4"],
+        "formats": [
+            "U25",
+            "datetime64[us]",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+            "i4",
+        ],
     }
 )
 
@@ -77,19 +90,20 @@ def info_str(mem_info) -> str:
     if "data" in dir(mem_info):
         mem_info = mem_info.data
 
-    if issubclass(type(mem_info), list):
+    if isinstance(mem_info, list):
         s = "\n".join(mem_info)
-    elif issubclass(type(mem_info), str):
-        s = str(mem_info)
+    elif isinstance(mem_info, str):
+        s = mem_info
 
     return s
 
 
 @dataclass
 class MemoryInfo:
-    mmap: InitVar[str] = ""
+    raw_mmap: InitVar[str] = ""
     cols: InitVar[Optional[int]] = None  # type: ignore
     name: str = ""
+    mmap: str = ""
     datetime = None
     """Memory map"""
     rainbow: bool = False
@@ -117,10 +131,10 @@ class MemoryInfo:
     _columns: int = 4
     _show_free = False
 
-    def __post_init__(self, mmap: str, cols):
-        if mmap:
-            # self.mmap = info_str(mmap)
-            self.parse(mmap)
+    def __post_init__(self, raw_mmap: str, cols):
+        if raw_mmap:
+            # self.mmap = info_str(raw_mmap)
+            self.parse(raw_mmap)
         if cols:
             self._columns = cols
 
@@ -152,8 +166,8 @@ class MemoryInfo:
         elif self.name:
             head += f"{self.name}\n"
         head += (
-            f"Stack used:  0x{self.stack_used:04_x} of Total: 0x{self.stack_total:04x}  pct free: {(self.stack_total - self.stack_used)/self.stack_total if self.stack_total else 0:4.1%}\n"
-            f"Memory used: 0x{self.used:08_x} of Total: 0x{self.total:08_x}  free: 0x{self.free:08_x} pct free: {(self.free/self.total)if self.total else 0:4.1%}\n"
+            f"Stack used:  0x{self.stack_used:04_x} of Total: 0x{self.stack_total:04x}  pct free: {(self.stack_total - self.stack_used) / self.stack_total if self.stack_total else 0:4.1%}\n"
+            f"Memory used: 0x{self.used:08_x} of Total: 0x{self.total:08_x}  free: 0x{self.free:08_x} pct free: {(self.free / self.total) if self.total else 0:4.1%}\n"
             f"1-Blocks:       {self.one_blocks:5}  2-Blocks:      {self.two_blocks:5}\n"
             f"Max Block size: {self.max_block_size:5}  Max Free size: {self.max_free_size:5}\n"
         )
@@ -293,9 +307,12 @@ class MemoryInfo:
         # find the used blocks
         match_head_2 = RE_HEAD_2.search(mem_info)
         if match_head_2:
-            self.one_blocks, self.two_blocks, self.max_block_size, self.max_free_size = [
-                int(x) for x in match_head_2.groups()
-            ]
+            (
+                self.one_blocks,
+                self.two_blocks,
+                self.max_block_size,
+                self.max_free_size,
+            ) = [int(x) for x in match_head_2.groups()]
         match_stack = RE_STACK.search(mem_info)
         if match_stack:
             self.stack_used, self.stack_total = [int(x) for x in match_stack.groups()]
@@ -365,9 +382,6 @@ class MemoryInfo:
 # -------------------------------------------------------------------------------------------
 
 
-from collections import UserList
-
-
 class MemoryInfoList(UserList):
     """A list of MemoryInfo objects that is used to store a series of memory map of the device"""
 
@@ -414,9 +428,9 @@ class MemoryInfoList(UserList):
             dtype=DT_MEMINFO,
         )
 
-    def insert(self, index, item, name: str = ""):
+    def insert(self, i, item, name: str = ""):
         new = self._validate_mi(item, name=name)
-        self.data.insert(index, new)
+        self.data.insert(i, new)
 
     def append(self, item, name: str = ""):
         new = self._validate_mi(item, name=name)
@@ -443,7 +457,7 @@ class MemoryInfoList(UserList):
             info.name = name
             info.parent = self
             return info
-        elif issubclass(type(value), str):
+        elif isinstance(value, str):
             info = MemoryInfo(value)
             info.name = name
             info.parent = self
@@ -458,6 +472,7 @@ class MemoryInfoList(UserList):
         self.diff_with = ()
         if not did:
             did = display(self, display_id=True)
+            assert did is not None
         else:
             update_display(self, display_id=did.display_id)
         time.sleep(delay)
@@ -483,12 +498,13 @@ class MemoryInfoList(UserList):
         indexes are in self.diff_with(A,[B])
         # Jupyter Pretty Printer for diff comparisons of two maps
         """
+        if len(self.diff_with) < 2:
+            text = f"{Fore.RED}diff_with tuple must have 2 elements, got {len(self.diff_with)}"
+            pp.text(text)
+            return
         try:
             other_map = self.data[self.diff_with[0]]
-            if len(self.diff_with) > 1:
-                cur_map = self.data[self.diff_with[1]]
-            else:
-                cur_map = self.data[self._current]
+            cur_map = self.data[self.diff_with[1]]
         except IndexError:
             text = f"{Fore.RED}Not enough memory maps to compare - need 2, got {len(self.data)}"
             pp.text(text)
@@ -520,7 +536,8 @@ class MemoryInfoList(UserList):
         # init
         in_mem_info = False
         nr = 0
-        mem_info_log = []
+        mem_info_log: list[str] = []
+        map_name = ""
         # find the memory_info lines in the (console) log output
         while nr < len(log_text):
             # if the regex matches, start a new map
@@ -559,9 +576,6 @@ class MemoryInfoList(UserList):
         add_legend: bool = True,
         size=(12, 4),  # Figure dimension (width, height) in inches.
     ):  # sourcery skip: last-if-guard
-        # only import if needed
-        import warnings
-
         KB_DIVIDER = 1024
         LEGEND_L_BOX = (0.0, 0.0, 0.05, 1)
         LEGEND_R_BOX = (0.7, 0.0, 0.3, 1)
@@ -586,7 +600,9 @@ class MemoryInfoList(UserList):
                 "formatter function to retrieve the label for the x-axis based onthe x_value that is passed in."
                 try:
                     idx = int(x_value)  # convert float to int
-                    return self.np_array["description"][idx]  # return the label from the list
+                    return self.np_array["description"][
+                        idx
+                    ]  # return the label from the list
                 except IndexError:
                     return str(x_value)  #  out of range
 
@@ -603,7 +619,7 @@ class MemoryInfoList(UserList):
         # configure both axes
         ##################################################################################
         ax1.yaxis.set_major_formatter(
-            lambda x, pos: f"{x/KB_DIVIDER:_.0f} Kb"
+            lambda x, pos: f"{x / KB_DIVIDER:_.0f} Kb"
         )  # integers in thousands notation
         ax1.set_ylabel("Memory (Kb)")
         ax1.set_xmargin(0)
@@ -645,34 +661,56 @@ class MemoryInfoList(UserList):
             colors.append("purple")
             data.append(self.np_array["stack"])
 
-        s_plot = ax1.stackplot(x, data, labels=labels, colors=colors, alpha=0.5)
+        ax1.stackplot(x, data, labels=labels, colors=colors, alpha=0.5)
 
         my_lines: List[Line2D] = []
         # Add line charts to 2nd axis
         if one_blocks:
             my_lines += ax2.plot(
-                x, self.np_array["1-blocks"], label="1-Blocks", marker=".", linestyle="-."
+                x,
+                self.np_array["1-blocks"],
+                label="1-Blocks",
+                marker=".",
+                linestyle="-.",
             )
         if two_blocks:
             my_lines += ax2.plot(
-                x, self.np_array["2-blocks"], label="2-Blocks", marker=".", linestyle="--"
+                x,
+                self.np_array["2-blocks"],
+                label="2-Blocks",
+                marker=".",
+                linestyle="--",
             )
         if max_block_size:
             my_lines += ax2.plot(
-                x, self.np_array["max block"], label="Max Block Size", marker=".", linestyle="--"
+                x,
+                self.np_array["max block"],
+                label="Max Block Size",
+                marker=".",
+                linestyle="--",
             )
         if max_free_size:
             my_lines += ax2.plot(
-                x, self.np_array["max free"], label="Max Free Size", marker=".", linestyle="--"
+                x,
+                self.np_array["max free"],
+                label="Max Free Size",
+                marker=".",
+                linestyle="--",
             )
         if stack_used:
             my_lines += ax2.plot(
-                x, self.np_array["stack used"], label="Stack Used", marker=".", linestyle="--"
+                x,
+                self.np_array["stack used"],
+                label="Stack Used",
+                marker=".",
+                linestyle="--",
             )
 
         if add_legend:
             # Add legend and show plot, best location left-ish top
-            ax1.legend(loc="best", reverse=True, bbox_to_anchor=LEGEND_L_BOX, fontsize="small")
+            ax1.legend(
+                loc="best", reverse=True, bbox_to_anchor=LEGEND_L_BOX, fontsize="small"
+            )
             #  bbox (x, y, width, height) - best location right-ish top
             ax2.legend(loc="best", bbox_to_anchor=LEGEND_R_BOX, fontsize="small")
         plt.tick_params(bottom="on")
@@ -688,21 +726,24 @@ class MemoryInfoList(UserList):
         )
         annot.set_visible(False)
 
-        def update_annot(line: Line2D, ind: Dict):
+        def update_annot(line: Line2D, ind: Dict[str, List[int]]):
             """Update the annotation box with the data from the selected line."""
-            x, y = line.get_data()
+            xdata, ydata = line.get_data()
             # get the list index of the selected data point
             indx = ind["ind"][0]
-            annot.xy = (x[indx], y[indx])
+            x_val = float(xdata[indx])  # type: ignore[index]
+            y_val = float(ydata[indx])  # type: ignore[index]
+            annot.xy = (x_val, y_val)
             ## get the text from the line object
             text = (
                 f"@{self[indx].name}\n"
                 f"time:{self[indx].datetime}\n"
-                f"{line.get_label()} = {y[indx]:_.0f}\n"
+                f"{line.get_label()} = {y_val:_.0f}\n"
                 f"Memory used: {self[indx].used:_.0f} b, free {self[indx].free:_.0f} b"
             )
             annot.set_text(text)
-            annot.get_bbox_patch().set_alpha(0.4)  # set the transparency of the box # type: ignore
+            if bbox_patch := annot.get_bbox_patch():
+                bbox_patch.set_alpha(0.4)  # set the transparency of the box
 
         def hover(event: MouseEvent):
             """On mouse-hovewr over a line, display the corresponding data point value"""
@@ -721,5 +762,5 @@ class MemoryInfoList(UserList):
                     fig.canvas.draw_idle()
 
         # connect the hover-function to the mouse
-        fig.canvas.mpl_connect("motion_notify_event", hover)
+        fig.canvas.mpl_connect("motion_notify_event", hover)  # type: ignore
         return fig
