@@ -27,7 +27,9 @@ RE_STACK = re.compile(r"stack: (\d+) out of (\d+)")
 RE_BLOCK = re.compile(r"^[0-9a-fA-F]*\: (.*)", flags=re.MULTILINE)
 RE_FREE = re.compile(r"\((.*) lines all free\)")
 # setup terminators
-RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info (.*) \*\*\*")
+# Updated to handle both standard format (space) and decorator format (colon)
+# Examples: "*** Memory info test ***" and "*** Memory info: test ***"
+RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info\s*:?\s*(.*?)\s*\*\*\*")
 RE_MEM_INFO_END = re.compile(r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*")
 
 RE_ALL = [
