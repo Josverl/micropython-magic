@@ -29,7 +29,8 @@ RE_FREE = re.compile(r"\((.*) lines all free\)")
 # setup terminators
 # Updated to handle both standard format (space) and decorator format (colon)
 # Examples: "*** Memory info test ***" and "*** Memory info: test ***"
-RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info\s*:?\s*(.*?)\s*\*\*\*")
+# Using [^*]* to match any characters except asterisks (more semantically correct)
+RE_MEM_INFO_START = re.compile(r"\*\*\* Memory info\s*:?\s*([^*]*?)\s*\*\*\*")
 RE_MEM_INFO_END = re.compile(r"\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*")
 
 RE_ALL = [

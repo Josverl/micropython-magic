@@ -4,27 +4,21 @@ import re
 import pytest
 
 
-def test_meminfo_start_regex_patterns():
-    """Test that RE_MEM_INFO_START regex handles both standard and decorator formats."""
-    from micropython_magic.memoryinfo import RE_MEM_INFO_START
-    
-    # Test cases: (input_string, expected_captured_name)
-    test_cases = [
+@pytest.mark.parametrize(
+    "test_str,expected",
+    [
         # Standard format (original)
         ("*** Memory info before_test ***", "before_test"),
         ("*** Memory info test123 ***", "test123"),
         ("*** Memory info ***", ""),  # Edge case: no name
-        
         # Decorator format with colon (the issue being fixed)
         ("*** Memory info: before_test ***", "before_test"),
         ("*** Memory info: after_test ***", "after_test"),
         ("*** Memory info:test456 ***", "test456"),  # No space after colon
-        
         # Mixed formats (space before colon)
         ("*** Memory info : mixed_test ***", "mixed_test"),
         ("*** Memory info  test_spaces ***", "test_spaces"),  # Multiple spaces
-        
-        # Additional punctuation and textual variations (new requirement)
+        # Additional punctuation and textual variations
         ("*** Memory info:  extra_spaces ***", "extra_spaces"),  # Extra spaces after colon
         ("*** Memory info   :   test ***", "test"),  # Spaces around colon
         ("*** Memory info:my_function ***", "my_function"),  # No spaces at all
@@ -32,13 +26,16 @@ def test_meminfo_start_regex_patterns():
         ("*** Memory info: test-with-dashes ***", "test-with-dashes"),  # Dashes in name
         ("*** Memory info: test_with_123 ***", "test_with_123"),  # Numbers in name
         ("*** Memory info: CamelCaseTest ***", "CamelCaseTest"),  # CamelCase
-    ]
+    ],
+)
+def test_meminfo_start_regex_patterns(test_str, expected):
+    """Test that RE_MEM_INFO_START regex handles both standard and decorator formats."""
+    from micropython_magic.memoryinfo import RE_MEM_INFO_START
     
-    for test_str, expected in test_cases:
-        match = RE_MEM_INFO_START.match(test_str)
-        assert match is not None, f"Failed to match: {test_str}"
-        captured = match.group(1)
-        assert captured == expected, f"For '{test_str}': expected '{expected}', got '{captured}'"
+    match = RE_MEM_INFO_START.match(test_str)
+    assert match is not None, f"Failed to match: {test_str}"
+    captured = match.group(1)
+    assert captured == expected, f"For '{test_str}': expected '{expected}', got '{captured}'"
 
 
 def test_meminfo_end_regex_pattern():
