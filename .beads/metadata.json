@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "micropython_magic",
+  "project_id": "0ba9949a-b256-4ef3-afb7-4327ee33c00d"
+}
